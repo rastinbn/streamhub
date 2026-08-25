@@ -1,0 +1,106 @@
+// StreamHub - Initial Prisma schema
+// Phase 1: structural foundation only. Relationships and business rules
+// (constraints, cascades, indexes beyond the obvious, etc.) will be refined
+// in later phases as each domain module is implemented.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String?
+  displayName  String?
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  channel   Channel?
+  follows   Follow[]       @relation("FollowerUser")
+  messages  ChatMessage[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Channel {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  displayName String
+  description String?
+  ownerId     String   @unique
+  owner       User     @relation(fields: [ownerId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  streams     Stream[]
+  followers   Follow[]      @relation("FollowedChannel")
+  chatMessages ChatMessage[]
+
+  @@map("channels")
+}
+
+model Stream {
+  id          String       @id @default(cuid())
+  channelId   String
+  channel     Channel      @relation(fields: [channelId], references: [id])
+  title       String?
+  status      StreamStatus @default(OFFLINE)
+  streamKey   String       @unique @default(cuid())
+  startedAt   DateTime?
+  endedAt     DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("streams")
+}
+
+enum StreamStatus {
+  OFFLINE
+  LIVE
+  STARTING
+  ENDING
+}
+
+model Follow {
+  id           String   @id @default(cuid())
+  followerId   String
+  follower     User     @relation("FollowerUser", fields: [followerId], references: [id])
+  channelId    String
+  channel      Channel  @relation("FollowedChannel", fields: [channelId], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@unique([followerId, channelId])
+  @@map("follows")
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  channelId String
+  channel   Channel  @relation(fields: [channelId], references: [id])
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
+
+  @@map("chat_messages")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String
+  payload   Json?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}

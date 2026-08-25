@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+.next/
+out/
+build/
+*.tsbuildinfo
+
+# Turborepo
+.turbo/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# Prisma
+packages/database/prisma/migrations/dev/
+
+# Testing
+coverage/
+
+# Streaming server runtime data
+infrastructure/streaming/recordings/
+infrastructure/streaming/hls/
+
+# Docker
+docker-compose.override.yml

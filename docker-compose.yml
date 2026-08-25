@@ -1,0 +1,57 @@
+version: "3.9"
+
+# StreamHub - Development infrastructure
+#
+# Only stateful/infrastructure services run here. The Next.js and NestJS
+# applications run directly on the host via `pnpm dev` for the best local
+# dev experience (fast refresh, debugging, etc.).
+#
+# Usage: docker compose up -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: streamhub-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-streamhub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-streamhub}
+      POSTGRES_DB: ${POSTGRES_DB:-streamhub}
+    ports:
+      - "5432:5432"
+    volumes:
+      - streamhub_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-streamhub}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: streamhub-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - streamhub_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: streamhub-mediamtx
+    restart: unless-stopped
+    ports:
+      - "1935:1935" # RTMP ingest (OBS publishes here)
+      - "8888:8888" # HLS / Low-Latency HLS output (web player consumes here)
+      - "9997:9997" # MediaMTX API (health/introspection)
+    volumes:
+      - ./infrastructure/streaming/mediamtx.yml:/mediamtx.yml:ro
+
+volumes:
+  streamhub_postgres_data:
+  streamhub_redis_data:

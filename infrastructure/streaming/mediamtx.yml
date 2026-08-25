@@ -1,0 +1,53 @@
+# StreamHub - MediaMTX configuration
+#
+# Responsibilities of this file:
+#   - Accept RTMP publish connections from OBS (ingest)
+#   - Serve HLS / Low-Latency HLS to the web player (playback)
+#
+# This server is intentionally isolated from the NestJS API. It knows
+# nothing about users, channels, or auth in Phase 1 — stream-key validation
+# via an HTTP callback to the API will be introduced in a later phase.
+
+logLevel: info
+logDestinations: [stdout]
+
+# ---------------------------------------------------------------------------
+# RTMP ingest (OBS -> MediaMTX)
+# ---------------------------------------------------------------------------
+rtmp: yes
+rtmpAddress: :1935
+
+# ---------------------------------------------------------------------------
+# HLS / Low-Latency HLS output (MediaMTX -> Web Player)
+# ---------------------------------------------------------------------------
+hls: yes
+hlsAddress: :8888
+hlsAllowOrigin: "*"
+hlsVariant: lowLatency
+hlsSegmentCount: 7
+hlsSegmentDuration: 1s
+hlsPartDuration: 200ms
+
+# ---------------------------------------------------------------------------
+# API server (used for health checks / future stream-key auth callbacks)
+# ---------------------------------------------------------------------------
+api: yes
+apiAddress: :9997
+
+# ---------------------------------------------------------------------------
+# Other protocols left disabled for Phase 1 (kept explicit for clarity)
+# ---------------------------------------------------------------------------
+rtsp: no
+webrtc: no
+srt: no
+
+# ---------------------------------------------------------------------------
+# Paths
+#
+# "all_others" accepts any stream key for now. In a later phase this will be
+# replaced with per-path definitions plus a "runOnPublish" / auth HTTP
+# callback to the API to validate stream keys against the database before
+# allowing a publish.
+# ---------------------------------------------------------------------------
+paths:
+  all_others:

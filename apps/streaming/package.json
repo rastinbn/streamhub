@@ -1,0 +1,12 @@
+{
+  "name": "@streamhub/streaming",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Configuration for the streaming infrastructure layer (MediaMTX). Not a Node.js application — no code runs from this package. Kept in the monorepo for visibility and future scripting needs.",
+  "scripts": {
+    "lint": "echo \"no lint step: config-only package\" && exit 0",
+    "typecheck": "echo \"no typecheck step: config-only package\" && exit 0",
+    "test": "echo \"no tests: config-only package\" && exit 0",
+    "dev": "echo \"streaming server runs via docker compose, see infrastructure/streaming\" && exit 0"
+  }
+}
