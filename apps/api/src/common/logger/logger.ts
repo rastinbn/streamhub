@@ -11,7 +11,7 @@ export function createLogger() {
       ? ['log', 'warn', 'error']
       : ['log', 'warn', 'error', 'debug', 'verbose'];
 
-  return new ConsoleLogger({
+  return new ConsoleLogger('StreamHub', {
     logLevels: levels,
   });
 }
