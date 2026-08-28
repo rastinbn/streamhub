@@ -1,5 +1,6 @@
 import StreamCard, { StreamCardProps } from '@/components/StreamCard';
-import { ChevronDown, Loader2 } from 'lucide-react';
+import { Search } from '@/components/Search';
+import { ChevronDown } from 'lucide-react';
 
 const FILTERS: { label: string; active?: boolean; liveDot?: boolean }[] = [
   { label: 'All', active: true },
@@ -120,7 +121,8 @@ export default function Page() {
             Discover top live content across all categories.
           </p>
         </div>
-        <div className="relative w-full md:w-auto">
+        <div className="w-full md:w-auto flex items-center gap-sm">
+          <Search className="flex-1 md:flex-none md:w-64" />
           <button
             type="button"
             className="w-full md:w-48 flex items-center justify-between px-md py-sm bg-surface border border-outline-variant rounded-lg text-body-sm font-body-sm hover:border-primary transition-colors group"

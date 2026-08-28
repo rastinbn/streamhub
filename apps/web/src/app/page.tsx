@@ -1,3 +1,5 @@
+import RoutePlaceholder from '@/components/route-placeholder';
+
 export default function HomePage() {
-  return <></>;
+  return <RoutePlaceholder route="/" description="Discover live streams across the platform." />;
 }

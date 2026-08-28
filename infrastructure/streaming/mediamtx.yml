@@ -51,3 +51,6 @@ srt: no
 # ---------------------------------------------------------------------------
 paths:
   all_others:
+    # Accept any RTMP publish for now; per-key validation via the API is a
+    # later-phase enhancement.
+    source: publisher

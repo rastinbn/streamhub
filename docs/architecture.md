@@ -69,3 +69,21 @@ Several architectural reasons drive keeping video traffic out of the NestJS API:
 3. **Resource isolation.** Media processing (transcoding, packaging) is CPU/bandwidth-intensive in ways that differ sharply from typical API workloads (DB queries, JSON responses). Isolating them prevents one from starving the other.
 4. **Independent scaling & replacement.** Because MediaMTX is fully decoupled, it can be replaced with a different streaming server, moved to a managed media service, or horizontally scaled independently — without touching the API's codebase or deployment.
 5. **Simplicity of the API's contract.** The API's job stays clean: manage metadata and state. It issues stream keys and exposes "is this channel live," but never becomes responsible for the mechanics of moving video bytes.
+
+## 6. Frontend / UI Layer
+
+The web app (`apps/web`, Next.js App Router) is a **presentation-only** client. It renders UI, holds client auth state, and calls the API; it never imports Prisma or talks to Postgres/Redis directly.
+
+- **Design system:** The visual source of truth is `UI/streamhub/DESIGN.md` (tokens, typography, spacing, elevation) plus the per-route reference images `UI/streamhub_<route>/screen.png`. See `docs/ui-contract.md`.
+- **Token implementation:** Design tokens are realized in `apps/web/tailwind.config.js` and `apps/web/src/app/globals.css`. Components must use only these tokens.
+- **Shared components:** App-level components live in `apps/web/src/components` (`StreamCard`, `NavItem`, `MainNav`, `FollowedChannel`); cross-app primitives live in `packages/ui` (`Button`, `Input`, `Card`, `Avatar`, `Badge`, `Modal`, `Tabs`, `Dropdown`, `Toast`).
+- **UI/UX fidelity rule:** Pages are implemented to match their reference PNG; no generic templates or invented sections. (See `docs/development-rules.md` §3 and `docs/ui-contract.md` §6.)
+
+## 7. Documentation Index
+
+| Document | Purpose |
+| --- | --- |
+| `docs/architecture.md` | System & streaming architecture (this file) |
+| `docs/domain-model.md` | Prisma entities, relationships, control/media-plane split |
+| `docs/ui-contract.md` | UI reference mapping, design tokens, reusable components, responsive strategy |
+| `docs/development-rules.md` | Engineering conventions, boundaries, quality gates |
