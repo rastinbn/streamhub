@@ -1,10 +1,9 @@
 import { Module } from '@nestjs/common';
+import { UsersService } from './users.service';
+import { UsersController } from './users.controller';
 
-/**
- * Placeholder module for the "users" domain.
- * Business logic (controllers, services, DTOs) will be added in a later
- * phase. This module exists now so the application wiring and dependency
- * graph are established from day one.
- */
-@Module({})
+@Module({
+  controllers: [UsersController],
+  providers: [UsersService],
+})
 export class UsersModule {}

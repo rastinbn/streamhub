@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import configuration from './config/configuration';
 import { HealthModule } from './health/health.module';
 import { DatabaseModule } from './database/database.module';
@@ -20,6 +22,9 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
       isGlobal: true,
       load: [configuration],
     }),
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60000, limit: 20 }],
+    }),
     DatabaseModule,
     RedisModule,
     HealthModule,
@@ -33,6 +38,12 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     NotificationsModule,
     ModerationModule,
     AnalyticsModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}
