@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@streamhub/eslint-config": "workspace:*",
+    "@types/node": "^20.14.15",
     "prisma": "^5.19.0",
     "typescript": "^5.5.4"
   }

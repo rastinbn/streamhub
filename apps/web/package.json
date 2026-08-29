@@ -12,6 +12,7 @@
   "dependencies": {
     "@streamhub/types": "workspace:*",
     "@streamhub/ui": "workspace:*",
+    "clsx": "^2.1.1",
     "lucide-react": "^1.34.0",
     "next": "^14.2.5",
     "react": "^18.3.0",

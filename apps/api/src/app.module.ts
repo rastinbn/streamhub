@@ -1,7 +1,11 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import configuration from './config/configuration';
 import { HealthModule } from './health/health.module';
+import { DatabaseModule } from './database/database.module';
+import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { ChannelsModule } from './modules/channels/channels.module';
@@ -18,6 +22,11 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
       isGlobal: true,
       load: [configuration],
     }),
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60000, limit: 20 }],
+    }),
+    DatabaseModule,
+    RedisModule,
     HealthModule,
     // Domain modules (placeholders for now, implemented phase by phase):
     AuthModule,
@@ -29,6 +38,12 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     NotificationsModule,
     ModerationModule,
     AnalyticsModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}

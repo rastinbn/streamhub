@@ -16,9 +16,11 @@ model User {
   id           String   @id @default(cuid())
   username     String   @unique
   email        String   @unique
-  passwordHash String?
+  passwordHash String
   displayName  String?
-  avatarUrl    String?
+  avatar       String?
+  bio          String?
+  role         Role     @default(USER)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -28,6 +30,13 @@ model User {
   notifications Notification[]
 
   @@map("users")
+}
+
+enum Role {
+  USER
+  STREAMER
+  MODERATOR
+  ADMIN
 }
 
 model Channel {
