@@ -1,4 +1,9 @@
+'use client';
+
+import { useMemo, useState } from 'react';
 import CategoryCard, { type CategoryCardProps } from '@/components/CategoryCard';
+import { LayoutGrid, Gamepad2, Users, Music2, Cpu, Trophy, Palette } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 const categories: CategoryCardProps[] = [
   {
@@ -48,41 +53,97 @@ const categories: CategoryCardProps[] = [
   },
 ];
 
-const filters = ['All Categories', 'Games', 'IRL', 'Music', 'Creative'];
-export default function Categories() {
-  return (
-    <div className="flex-1 pt-16 md:pt-0 p-md md:p-lg lg:p-xl max-w-[1920px] mx-auto w-full">
-        <h1 className="font-display-lg text-display-lg text-on-surface mb-lg">Categories</h1>
+// Icon per badge — falls back to a generic grid icon for any badge value
+// that shows up later without a mapping here, so a new category never
+// renders without an icon.
+const BADGE_ICONS: Record<string, LucideIcon> = {
+  Gaming: Gamepad2,
+  IRL: Users,
+  Music: Music2,
+  Creative: Palette,
+  Tech: Cpu,
+  Events: Trophy,
+};
 
-        <div className="flex gap-sm mb-lg overflow-x-auto pb-2 scrollbar-hide">
-          {filters.map((filter, index) => (
+// Filters are derived from the badges actually present in the data, instead
+// of a hand-typed list — the previous static list ('Games', 'Music') didn't
+// match the real badge values ('Gaming' had no matching filter at all), so
+// clicking most of them silently filtered nothing. This also means a new
+// category with a new badge gets a working filter automatically.
+const FILTER_ALL = 'All Categories';
+
+export default function Categories() {
+  const [activeFilter, setActiveFilter] = useState(FILTER_ALL);
+
+  const filters = useMemo(
+    () => [FILTER_ALL, ...Array.from(new Set(categories.map((c) => c.badge)))],
+    [],
+  );
+
+  const visibleCategories = useMemo(
+    () =>
+      activeFilter === FILTER_ALL ? categories : categories.filter((c) => c.badge === activeFilter),
+    [activeFilter],
+  );
+
+  return (
+    <div className="mx-auto w-full max-w-[1920px] flex-1 p-md pt-16 md:p-lg md:pt-0 lg:p-xl">
+      <h1 className="mb-lg text-display-lg-mobile font-display-lg-mobile text-on-surface md:text-display-lg md:font-display-lg">
+        Categories
+      </h1>
+
+      {/* Filter chips — derived from real badge values, see FILTER note above */}
+      <div className="no-scrollbar mb-lg flex gap-sm overflow-x-auto pb-2">
+        {filters.map((filter) => {
+          const isActive = activeFilter === filter;
+          const Icon = filter === FILTER_ALL ? LayoutGrid : (BADGE_ICONS[filter] ?? LayoutGrid);
+          return (
             <button
               key={filter}
               type="button"
-              className={
-                index === 0
-                  ? 'px-4 py-1.5 rounded-full bg-surface-variant border border-outline-variant/50 text-on-surface font-label-md text-label-md hover:bg-surface-bright transition-colors whitespace-nowrap'
-                  : 'px-4 py-1.5 rounded-full bg-surface border border-outline-variant/30 text-on-surface-variant font-label-md text-label-md hover:border-outline-variant transition-colors whitespace-nowrap'
-              }
+              onClick={() => setActiveFilter(filter)}
+              aria-pressed={isActive}
+              className={`flex shrink-0 items-center gap-xs whitespace-nowrap rounded-full border px-4 py-1.5 text-label-md font-label-md transition-colors ${
+                isActive
+                  ? 'border-transparent bg-primary-container text-on-primary-container font-semibold'
+                  : 'border-outline-variant/30 bg-surface text-on-surface-variant hover:border-outline-variant hover:text-on-surface'
+              }`}
             >
+              <Icon className="h-4 w-4" />
               {filter}
             </button>
-          ))}
-        </div>
+          );
+        })}
+      </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-md">
-          {categories.map((category) => (
-            <CategoryCard
-              key={null}
-              name={category.name}
-              badge={category.badge}
-              image={category.image}
-              viewers={category.viewers}
-              liveChannels={category.liveChannels}
-              alt={category.alt}
-            />
+      {/* Category grid */}
+      {visibleCategories.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-sm rounded-lg border border-dashed border-outline-variant py-2xl text-center">
+          <LayoutGrid className="h-8 w-8 text-outline" />
+          <p className="text-body-md font-body-md text-on-surface-variant">
+            No categories in &#34;{activeFilter}&#34; yet.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-md sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {visibleCategories.map((category, i) => (
+            <div
+              key={category.name}
+              className="motion-safe:animate-[fade-in-up_400ms_ease-out_backwards]"
+              style={{ animationDelay: `${Math.min(i, 10) * 40}ms` }}
+            >
+              <CategoryCard
+                name={category.name}
+                badge={category.badge}
+                image={category.image}
+                viewers={category.viewers}
+                liveChannels={category.liveChannels}
+                alt={category.alt}
+              />
+            </div>
           ))}
         </div>
+      )}
     </div>
   );
 }

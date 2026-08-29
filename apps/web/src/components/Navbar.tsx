@@ -1,9 +1,6 @@
 import { Bell, Search } from 'lucide-react';
 
-/**
- * Mobile top bar. Hidden on >=md where the Sidebar takes over navigation.
- * Mirrors the glassmorphism header from the design system.
- */
+
 export default function Navbar() {
   return (
     <header className="md:hidden flex justify-between items-center px-lg h-16 w-full bg-background/80 backdrop-blur-md fixed top-0 z-50 border-b border-outline-variant/30">

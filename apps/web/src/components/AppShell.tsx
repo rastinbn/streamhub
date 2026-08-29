@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import TopNav from '@/components/TopNav';
-import SideBar from '@/components/SideBar';
+import Sidebar from '@/components/Sidebar';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -17,8 +17,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <TopNav menuOpen={drawerOpen} onMenuClick={() => setDrawerOpen((v) => !v)} />
-      <SideBar open={drawerOpen} onClose={() => setDrawerOpen(false)} />
-      {/* Offset for the fixed top nav (h-16) and fixed sidebar on desktop (w-60) */}
+      <Sidebar open={drawerOpen} onClose={() => setDrawerOpen(false)} />
       <main className="min-h-screen pt-16 transition-[padding] duration-200 lg:pl-60">
         {children}
       </main>

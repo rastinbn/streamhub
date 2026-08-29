@@ -1,15 +1,43 @@
-import StreamCard, { StreamCardProps } from '@/components/StreamCard';
-import { Search } from '@/components/Search';
-import { ChevronDown } from 'lucide-react';
+'use client';
 
-const FILTERS: { label: string; active?: boolean; liveDot?: boolean }[] = [
-  { label: 'All', active: true },
-  { label: 'Live Now', liveDot: true },
-  { label: 'Categories' },
-  { label: 'Most Viewed' },
-  { label: 'Recently Started' },
-  { label: 'Recommended' },
+import { useEffect, useMemo, useRef, useState } from 'react';
+import StreamCard, { StreamCardProps } from '@/components/StreamCard';
+import {
+  ChevronDown,
+  Radio,
+  LayoutGrid,
+  Eye,
+  Clock,
+  Sparkles,
+  Check,
+  ArrowUpDown,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+
+type FilterId = 'all' | 'live' | 'categories' | 'most-viewed' | 'recent' | 'recommended';
+
+const FILTERS: { id: FilterId; label: string; icon?: LucideIcon; liveDot?: boolean }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'live', label: 'Live Now', liveDot: true },
+  { id: 'categories', label: 'Categories', icon: LayoutGrid },
+  { id: 'most-viewed', label: 'Most Viewed', icon: Eye },
+  { id: 'recent', label: 'Recently Started', icon: Clock },
+  { id: 'recommended', label: 'Recommended', icon: Sparkles },
 ];
+
+// Only 'all' and 'live' have real data behind them today (isLive is the only
+// field on StreamCardProps that supports filtering). The rest are wired up
+// as soon as the API returns category/recency/recommendation data.
+const FILTERABLE: FilterId[] = ['all', 'live'];
+
+type SortKey = 'viewers-desc' | 'viewers-asc' | 'alpha';
+
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'viewers-desc', label: 'Most Viewers' },
+  { key: 'viewers-asc', label: 'Fewest Viewers' },
+  { key: 'alpha', label: 'A–Z' },
+];
+
 const STREAM_CARDS: StreamCardProps[] = [
   {
     id: 1,
@@ -110,71 +138,164 @@ const STREAM_CARDS: StreamCardProps[] = [
 ];
 
 export default function Browse() {
+  const [activeFilter, setActiveFilter] = useState<FilterId>('all');
+  const [sortBy, setSortBy] = useState<SortKey>('viewers-desc');
+  const [sortOpen, setSortOpen] = useState(false);
+  const sortRef = useRef<HTMLDivElement>(null);
+
+  // Close the sort dropdown on outside click or Escape.
+  useEffect(() => {
+    if (!sortOpen) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (sortRef.current && !sortRef.current.contains(e.target as Node)) {
+        setSortOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setSortOpen(false);
+    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [sortOpen]);
+
+  const liveCount = useMemo(() => STREAM_CARDS.filter((c) => c.isLive).length, []);
+
+  const visibleCards = useMemo(() => {
+    const filtered = activeFilter === 'live' ? STREAM_CARDS.filter((c) => c.isLive) : STREAM_CARDS;
+
+    return [...filtered].sort((a, b) => {
+      if (sortBy === 'alpha') return a.title.localeCompare(b.title);
+      if (sortBy === 'viewers-asc') return a.viewerCount - b.viewerCount;
+      return b.viewerCount - a.viewerCount;
+    });
+  }, [activeFilter, sortBy]);
+
+  const currentSortLabel = SORT_OPTIONS.find((o) => o.key === sortBy)?.label;
+
   return (
-    <div className="flex-1 pt-16 md:pt-0 p-md md:p-lg lg:p-xl max-w-[1920px] mx-auto w-full">
-      <div className="mb-lg md:mb-xl flex flex-col gap-md md:flex-row md:items-end justify-between">
+    <div className="mx-auto w-full max-w-[1920px] flex-1 p-md pt-16 md:p-lg md:pt-0 lg:p-xl">
+      {/* Header */}
+      <div className="mb-lg flex flex-col gap-md justify-between md:mb-xl md:flex-row md:items-end">
         <div>
-          <h1 className="text-headline-lg-mobile md:text-headline-lg font-headline-lg-mobile md:font-headline-lg text-on-surface mb-xs">
+          <h1 className="mb-xs  text-headline-lg-mobile font-headline-lg-mobile text-on-surface md:text-headline-lg md:font-headline-lg">
             Browse Streams
           </h1>
-          <p className="text-body-md font-body-md text-on-surface-variant">
-            Discover top live content across all categories.
+          <p className="flex items-center gap-xs text-body-md font-body-md text-on-surface-variant">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-error opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-error" />
+            </span>
+            {liveCount} streams live now
           </p>
         </div>
-        <div className="w-full md:w-auto flex items-center gap-sm">
-          <Search className="flex-1 md:flex-none md:w-64" />
+
+        {/* Sort dropdown */}
+        <div ref={sortRef} className="relative w-full md:w-auto">
           <button
             type="button"
-            className="w-full md:w-48 flex items-center justify-between px-md py-sm bg-surface border border-outline-variant rounded-lg text-body-sm font-body-sm hover:border-primary transition-colors group"
+            onClick={() => setSortOpen((v) => !v)}
+            aria-haspopup="listbox"
+            aria-expanded={sortOpen}
+            className="flex w-full items-center justify-between gap-sm rounded-lg border border-outline-variant bg-surface px-md py-sm text-body-sm font-body-sm transition-colors hover:border-primary md:w-56"
           >
-            <span className="text-on-surface">
-              Sort by: <strong className="font-semibold ml-1">Most Viewers</strong>
+            <span className="flex items-center gap-xs text-on-surface">
+              <ArrowUpDown className="h-3.5 w-3.5 text-on-surface-variant" />
+              Sort: <strong className="font-semibold">{currentSortLabel}</strong>
             </span>
-            <ChevronDown className="w-4 h-4 text-on-surface-variant group-hover:text-primary transition-colors" />
+            <ChevronDown
+              className={`h-4 w-4 text-on-surface-variant transition-transform ${sortOpen ? 'rotate-180' : ''}`}
+            />
           </button>
+
+          {sortOpen && (
+            <ul
+              role="listbox"
+              className="absolute right-0 z-10 mt-xs w-full min-w-[12rem] overflow-hidden rounded-lg border border-outline-variant bg-surface shadow-lg md:w-56"
+            >
+              {SORT_OPTIONS.map((option) => (
+                <li key={option.key}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={sortBy === option.key}
+                    onClick={() => {
+                      setSortBy(option.key);
+                      setSortOpen(false);
+                    }}
+                    className="flex w-full items-center justify-between px-md py-sm text-left text-body-sm font-body-sm text-on-surface transition-colors hover:bg-surface-variant"
+                  >
+                    {option.label}
+                    {sortBy === option.key && <Check className="h-4 w-4 text-primary" />}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 
-      <div className="w-full overflow-x-auto pb-sm mb-lg no-scrollbar">
-        <div className="flex items-center gap-sm min-w-max">
-          {FILTERS.map((filter) => (
-            <button
-              key={filter.label}
-              type="button"
-              className={
-                filter.active
-                  ? 'px-md py-sm rounded-full bg-primary-container text-on-primary-container text-label-md font-label-md font-semibold tracking-wide transition-colors'
-                  : 'px-md py-sm rounded-full border border-outline-variant bg-transparent text-on-surface-variant hover:bg-surface-variant hover:text-on-surface text-label-md font-label-md transition-colors flex items-center gap-xs'
-              }
+      {/* Filter chips */}
+      <div className="no-scrollbar mb-lg w-full overflow-x-auto pb-sm">
+        <div className="flex min-w-max items-center gap-sm">
+          {FILTERS.map((filter) => {
+            const isActive = activeFilter === filter.id;
+            const isFilterable = FILTERABLE.includes(filter.id);
+            const Icon = filter.icon;
+            return (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => isFilterable && setActiveFilter(filter.id)}
+                title={isFilterable ? undefined : 'Coming soon'}
+                className={`flex items-center gap-xs rounded-full px-md py-sm text-label-md font-label-md transition-colors ${
+                  isActive
+                    ? 'bg-primary-container font-semibold tracking-wide text-on-primary-container'
+                    : 'border border-outline-variant bg-transparent text-on-surface-variant hover:bg-surface-variant hover:text-on-surface'
+                } ${!isFilterable ? 'opacity-60' : ''}`}
+              >
+                {filter.liveDot && <span className="h-2 w-2 rounded-full bg-error" />}
+                {Icon && <Icon className="h-4 w-4" />}
+                {filter.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Stream grid */}
+      {visibleCards.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-sm rounded-lg border border-dashed border-outline-variant py-2xl text-center">
+          <Radio className="h-8 w-8 text-outline" />
+          <p className="text-body-md font-body-md text-on-surface-variant">
+            Nothing live right now — check back soon.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-layout-gutter sm:grid-cols-2 md:gap-lg lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          {visibleCards.map((stream, i) => (
+            <div
+              key={stream.id}
+              className="motion-safe:animate-[fade-in-up_400ms_ease-out_backwards]"
+              style={{ animationDelay: `${Math.min(i, 10) * 40}ms` }}
             >
-              {filter.liveDot && <span className="w-2 h-2 rounded-full bg-error" />}
-              {filter.label}
-            </button>
+              <StreamCard
+                id={stream.id}
+                title={stream.title}
+                streamerName={stream.streamerName}
+                category={stream.category}
+                viewerCount={stream.viewerCount}
+                thumbnailUrl={stream.thumbnailUrl}
+                thumbnailAlt={stream.thumbnailAlt}
+                avatarUrl={stream.avatarUrl}
+                avatarAlt={stream.avatarAlt}
+                isLive={stream.isLive}
+              />
+            </div>
           ))}
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-layout-gutter md:gap-lg">
-        {STREAM_CARDS.map((stream) => (
-          <StreamCard
-            key={stream.id}
-            id={stream.id}
-            title={stream.title}
-            streamerName={stream.streamerName}
-            category={stream.category}
-            viewerCount={stream.viewerCount}
-            thumbnailUrl={stream.thumbnailUrl}
-            thumbnailAlt={stream.thumbnailAlt}
-            avatarUrl={stream.avatarUrl}
-            avatarAlt={stream.avatarAlt}
-            isLive={stream.isLive}
-          />
-        ))}
-      </div>
-
-      {/*<div className="w-full py-xl flex justify-center items-center mt-lg border-t border-outline-variant/30">*/}
-      {/*  <Loader2 className="w-8 h-8 text-primary animate-spin" />*/}
-      {/*</div>*/}
+      )}
     </div>
   );
 }

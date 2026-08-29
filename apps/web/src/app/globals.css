@@ -2,6 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+.font-display,
+.font-display-lg,
+.font-display-lg-mobile,
+.font-headline-lg,
+.font-headline-lg-mobile,
+.font-headline-md {
+    font-family: var(--font-display), var(--font-sans), sans-serif;
+}
+
+/* Body/label roles → the body face */
+.font-body-md,
+.font-body-sm,
+.font-label-md,
+.font-label-lg {
+    font-family: var(--font-sans), sans-serif;
+}
+
 /* Font wiring — variables are set on <html> in app/layout.tsx via next/font.
    .font-display is a plain CSS class (not a Tailwind utility) so it works
    without touching tailwind.config.js; wire it into `theme.fontFamily` there
@@ -20,6 +37,16 @@ body {
     from {
         opacity: 0;
         transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+@keyframes fade-in-up {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
     }
     to {
         opacity: 1;
