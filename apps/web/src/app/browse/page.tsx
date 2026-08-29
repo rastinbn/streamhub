@@ -108,7 +108,7 @@ const STREAM_CARDS: StreamCardProps[] = [
   },
 ];
 
-export default function Page() {
+export default function Browse() {
   return (
     <div className="flex-1 pt-16 md:pt-0 p-md md:p-lg lg:p-xl max-w-[1920px] mx-auto w-full">
       <div className="mb-lg md:mb-xl flex flex-col gap-md md:flex-row md:items-end justify-between">
