@@ -40,19 +40,24 @@ enum Role {
 }
 
 model Channel {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  displayName String
-  description String?
-  ownerId     String   @unique
-  owner       User     @relation(fields: [ownerId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  slug           String   @unique
+  name           String
+  description    String?
+  avatar         String?
+  banner         String?
+  category       String?
+  followersCount Int      @default(0)
+  ownerId        String   @unique
+  owner          User     @relation(fields: [ownerId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  streams     Stream[]
-  followers   Follow[]      @relation("FollowedChannel")
+  streams      Stream[]
+  followers    Follow[]      @relation("FollowedChannel")
   chatMessages ChatMessage[]
 
+  @@index([category])
   @@map("channels")
 }
 

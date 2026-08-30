@@ -19,6 +19,24 @@ export interface FakeUserRow {
   updatedAt: Date;
 }
 
+/**
+ * Minimal shape of the `channels` rows the channels module operates on.
+ * Mirrors the Prisma `Channel` model fields actually touched by the API.
+ */
+export interface FakeChannelRow {
+  id: string;
+  ownerId: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  avatar: string | null;
+  banner: string | null;
+  category: string | null;
+  followersCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 type CreateInput = {
   username: string;
   email: string;
@@ -28,18 +46,34 @@ type CreateInput = {
 
 type UpdateInput = Partial<Pick<FakeUserRow, 'displayName' | 'avatar' | 'bio'>>;
 
+type CreateChannelInput = {
+  ownerId: string;
+  slug: string;
+  name: string;
+  description?: string;
+  avatar?: string;
+  banner?: string;
+  category?: string;
+};
+
+type UpdateChannelInput = Partial<
+  Pick<FakeChannelRow, 'name' | 'slug' | 'description' | 'avatar' | 'banner' | 'category'>
+>;
+
 /**
  * Drop-in replacement for `PrismaService`, implementing only the subset of
- * the Prisma Client API that the auth/users modules call. Backed by a plain
- * in-memory array so tests don't require a running Postgres instance.
+ * the Prisma Client API that the auth/users/channels modules call. Backed by
+ * plain in-memory arrays so tests don't require a running Postgres instance.
  */
 @Injectable()
 export class FakePrismaService {
   private rows: FakeUserRow[] = [];
+  private channelRows: FakeChannelRow[] = [];
 
   /** Test helper: reset state between test cases. */
   reset(): void {
     this.rows = [];
+    this.channelRows = [];
   }
 
   /** Test helper: seed a row directly, bypassing the "create" API. */
@@ -104,6 +138,51 @@ export class FakePrismaService {
       if (data.displayName !== undefined) row.displayName = data.displayName ?? null;
       if (data.avatar !== undefined) row.avatar = data.avatar ?? null;
       if (data.bio !== undefined) row.bio = data.bio ?? null;
+      row.updatedAt = new Date();
+      return row;
+    },
+  };
+
+  channel = {
+    findUnique: async ({
+      where,
+    }: {
+      where: { id?: string; slug?: string; ownerId?: string };
+    }) => {
+      if (where.id) return this.channelRows.find((row) => row.id === where.id) ?? null;
+      if (where.slug) return this.channelRows.find((row) => row.slug === where.slug) ?? null;
+      if (where.ownerId) return this.channelRows.find((row) => row.ownerId === where.ownerId) ?? null;
+      return null;
+    },
+
+    create: async ({ data }: { data: CreateChannelInput }) => {
+      const now = new Date();
+      const row: FakeChannelRow = {
+        id: randomUUID(),
+        ownerId: data.ownerId,
+        slug: data.slug,
+        name: data.name,
+        description: data.description ?? null,
+        avatar: data.avatar ?? null,
+        banner: data.banner ?? null,
+        category: data.category ?? null,
+        followersCount: 0,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.channelRows.push(row);
+      return row;
+    },
+
+    update: async ({ where, data }: { where: { id: string }; data: UpdateChannelInput }) => {
+      const row = this.channelRows.find((r) => r.id === where.id);
+      if (!row) throw new Error('Record to update not found.');
+      if (data.name !== undefined) row.name = data.name;
+      if (data.slug !== undefined) row.slug = data.slug;
+      if (data.description !== undefined) row.description = data.description ?? null;
+      if (data.avatar !== undefined) row.avatar = data.avatar ?? null;
+      if (data.banner !== undefined) row.banner = data.banner ?? null;
+      if (data.category !== undefined) row.category = data.category ?? null;
       row.updatedAt = new Date();
       return row;
     },
