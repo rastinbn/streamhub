@@ -35,9 +35,9 @@ async function request<T>(
 
   const body = (await res.json().catch(() => null)) as ApiResponse<T> | null;
 
-  if (!res.ok || !body || body.success === false) {
-    const message = body && body.success === false ? body.error.message : 'Something went wrong. Please try again.';
-    const code = body && body.success === false ? body.error.code : 'UNKNOWN_ERROR';
+  if (!res.ok || !body || !body.success) {
+    const message = body && !body.success ? body.error.message : 'Something went wrong. Please try again.';
+    const code = body && !body.success ? body.error.code : 'UNKNOWN_ERROR';
     throw new ApiError(message, code, res.status);
   }
 
