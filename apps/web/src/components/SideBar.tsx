@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Home, Compass, LayoutGrid, Bell, Settings, CircleHelp } from 'lucide-react';
+import FollowedChannels from './FollowedChannels';
 
 export type NavItem = {
   href: string;
@@ -13,6 +13,7 @@ export type NavItem = {
   icon: LucideIcon;
 };
 
+<<<<<<< HEAD
 export type Channel = {
   name: string;
   avatar: string;
@@ -20,6 +21,8 @@ export type Channel = {
   href?: string;
 };
 
+=======
+>>>>>>> 0cf52a31b18290e13b9061d9534be027c4cc2000
 export const NAV_ITEMS: NavItem[] = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/browse', label: 'Browse', icon: Compass },
@@ -32,6 +35,7 @@ export const FOOTER_ITEMS: NavItem[] = [
   { href: '/help', label: 'Help', icon: CircleHelp },
 ];
 
+<<<<<<< HEAD
 export const FOLLOWED_CHANNELS: Channel[] = [
   {
     name: 'CodeNinja',
@@ -55,11 +59,18 @@ export const FOLLOWED_CHANNELS: Channel[] = [
 ];
 
 interface SideBarProps {
+=======
+interface SidebarProps {
+>>>>>>> 0cf52a31b18290e13b9061d9534be027c4cc2000
   open: boolean;
   onClose: () => void;
 }
 
+<<<<<<< HEAD
 export default function Sidebar({ open, onClose }: SideBarProps) {
+=======
+export default function Sidebar({ open, onClose }: SidebarProps) {
+>>>>>>> 0cf52a31b18290e13b9061d9534be027c4cc2000
   const pathname = usePathname();
 
   const isActive = useCallback(
@@ -71,7 +82,7 @@ export default function Sidebar({ open, onClose }: SideBarProps) {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
-    document.body.style.overflow = 'hidden'; // lock scroll while drawer is open
+    document.body.style.overflow = 'hidden';
     return () => {
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = '';
@@ -110,7 +121,6 @@ export default function Sidebar({ open, onClose }: SideBarProps) {
 
   return (
     <>
-      {/* Backdrop (mobile/tablet only) */}
       <div
         aria-hidden={!open}
         onClick={onClose}
@@ -127,6 +137,7 @@ export default function Sidebar({ open, onClose }: SideBarProps) {
       >
         {renderItems(NAV_ITEMS)}
 
+<<<<<<< HEAD
         <div className="mt-6 px-4">
           <h3 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-outline">
             Followed Channels
@@ -161,6 +172,13 @@ export default function Sidebar({ open, onClose }: SideBarProps) {
             ))}
           </ul>
         </div>
+=======
+        {/* Was a hardcoded mock array + <a type="button"> (invalid HTML —
+            `type` isn't an anchor attribute) rendered inline. Split out
+            since it now owns real loading/auth/unsupported states instead
+            of just a static list. See FollowedChannels.tsx. */}
+        <FollowedChannels />
+>>>>>>> 0cf52a31b18290e13b9061d9534be027c4cc2000
 
         <div className="mt-auto border-t border-outline-variant/30 px-2 pt-4">
           {renderItems(FOOTER_ITEMS)}

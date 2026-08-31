@@ -60,6 +60,7 @@ type UpdateChannelInput = Partial<
   Pick<FakeChannelRow, 'name' | 'slug' | 'description' | 'avatar' | 'banner' | 'category'>
 >;
 
+<<<<<<< HEAD
 /**
  * Minimal shape of the `streams` rows the streams module operates on.
  * Mirrors the Prisma `Stream` model fields actually touched by the API.
@@ -96,6 +97,8 @@ type UpdateStreamInput = Partial<
   >
 >;
 
+=======
+>>>>>>> 0cf52a31b18290e13b9061d9534be027c4cc2000
 /**
  * Drop-in replacement for `PrismaService`, implementing only the subset of
  * the Prisma Client API that the auth/users/channels modules call. Backed by
@@ -105,13 +108,19 @@ type UpdateStreamInput = Partial<
 export class FakePrismaService {
   private rows: FakeUserRow[] = [];
   private channelRows: FakeChannelRow[] = [];
+<<<<<<< HEAD
   private streamRows: FakeStreamRow[] = [];
+=======
+>>>>>>> 0cf52a31b18290e13b9061d9534be027c4cc2000
 
   /** Test helper: reset state between test cases. */
   reset(): void {
     this.rows = [];
     this.channelRows = [];
+<<<<<<< HEAD
     this.streamRows = [];
+=======
+>>>>>>> 0cf52a31b18290e13b9061d9534be027c4cc2000
   }
 
   /** Test helper: seed a row directly, bypassing the "create" API. */
@@ -225,6 +234,7 @@ export class FakePrismaService {
       return row;
     },
   };
+<<<<<<< HEAD
 
   stream = {
     findUnique: async ({ where }: { where: { id?: string; streamKeyHash?: string | null } }) => {
@@ -289,6 +299,8 @@ export class FakePrismaService {
       return row;
     },
   };
+=======
+>>>>>>> 0cf52a31b18290e13b9061d9534be027c4cc2000
 }
 
 /**

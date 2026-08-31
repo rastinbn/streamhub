@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import type { ChannelPublic, StreamPublic, UserPublic } from '@streamhub/types';
+=======
+import type { ChannelPublic, UserPublic } from '@streamhub/types';
+>>>>>>> 0cf52a31b18290e13b9061d9534be027c4cc2000
 
 /**
  * Strips `passwordHash` (and any other sensitive fields) from a Prisma user
@@ -20,6 +24,7 @@ export function toPublicUser<T extends { passwordHash: unknown }>(user: T): User
 export function toPublicChannel<T extends { id: unknown }>(channel: T): ChannelPublic {
   return channel as unknown as ChannelPublic;
 }
+<<<<<<< HEAD
 
 /**
  * Strips `streamKeyHash` from a Prisma stream row before it is returned to
@@ -32,3 +37,5 @@ export function toPublicStream<T extends { streamKeyHash: unknown }>(stream: T):
   void streamKeyHash;
   return rest as unknown as StreamPublic;
 }
+=======
+>>>>>>> 0cf52a31b18290e13b9061d9534be027c4cc2000

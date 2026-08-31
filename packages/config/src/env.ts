@@ -42,7 +42,15 @@ export type Env = z.infer<typeof envSchema>;
  * typed, safe env. Throws a descriptive error if validation fails so
  * misconfiguration is caught at boot time rather than at runtime.
  */
+<<<<<<< HEAD
 export function validateEnv(raw: NodeJS.ProcessEnv = process.env): Env {
+=======
+export function validateEnv(
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+
+  raw: NodeJS.ProcessEnv = process.env
+): Env {
+>>>>>>> 0cf52a31b18290e13b9061d9534be027c4cc2000
   const parsed = envSchema.safeParse(raw);
 
   if (!parsed.success) {
