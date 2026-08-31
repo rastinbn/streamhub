@@ -17,6 +17,7 @@ export type Channel = {
   name: string;
   avatar: string;
   isLive: boolean;
+  href?: string;
 };
 
 export const NAV_ITEMS: NavItem[] = [
@@ -33,10 +34,11 @@ export const FOOTER_ITEMS: NavItem[] = [
 
 export const FOLLOWED_CHANNELS: Channel[] = [
   {
-    name: 'NeonNinja',
+    name: 'CodeNinja',
     avatar:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuBwntjf1FdYBJ2OkgRsxwaPgXNNYVobhF12T0fi8O8TuOlMyPoPADa4FISRPyl-1F5vGz-iFWS5lPMAlS6iiKAJ0N2lG4aa2MHU8I4yO2O9D6rxY6R2PBdqQGdX7PtpKVI-a1eUNKKNyHih6CF82YOwS0BOKmQlDbx4C6jPPbM6Qhi8SWr7OTsIilYIOWMPOVySR6iQZetw4s9F9MRGbM88wD70_lM5-CBfgFlNaFR3syg4olt8DEeNDA',
     isLive: true,
+    href: "/channel/code-ninja",
   },
   {
     name: 'ProGamerX',
@@ -53,12 +55,11 @@ export const FOLLOWED_CHANNELS: Channel[] = [
 ];
 
 interface SideBarProps {
-  /** Controlled by the layout: drawer is open on < lg screens */
   open: boolean;
   onClose: () => void;
 }
 
-export default function SideBar({ open, onClose }: SideBarProps) {
+export default function Sidebar({ open, onClose }: SideBarProps) {
   const pathname = usePathname();
 
   const isActive = useCallback(
@@ -133,7 +134,8 @@ export default function SideBar({ open, onClose }: SideBarProps) {
           <ul className="flex flex-col gap-1">
             {FOLLOWED_CHANNELS.map((ch) => (
               <li key={ch.name}>
-                <button
+                <a
+                  href={ch.href}
                   type="button"
                   className="group flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-surface-variant focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
@@ -154,7 +156,7 @@ export default function SideBar({ open, onClose }: SideBarProps) {
                   {ch.isLive && (
                     <span aria-label="Live" className="h-2 w-2 shrink-0 rounded-full bg-error" />
                   )}
-                </button>
+                </a>
               </li>
             ))}
           </ul>
