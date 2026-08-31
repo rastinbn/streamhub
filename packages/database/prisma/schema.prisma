@@ -40,42 +40,64 @@ enum Role {
 }
 
 model Channel {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  displayName String
-  description String?
-  ownerId     String   @unique
-  owner       User     @relation(fields: [ownerId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  slug           String   @unique
+  name           String
+  description    String?
+  avatar         String?
+  banner         String?
+  category       String?
+  followersCount Int      @default(0)
+  ownerId        String   @unique
+  owner          User     @relation(fields: [ownerId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  streams     Stream[]
-  followers   Follow[]      @relation("FollowedChannel")
+  streams      Stream[]
+  followers    Follow[]      @relation("FollowedChannel")
   chatMessages ChatMessage[]
 
+  @@index([category])
   @@map("channels")
 }
 
 model Stream {
-  id          String       @id @default(cuid())
-  channelId   String
-  channel     Channel      @relation(fields: [channelId], references: [id])
-  title       String?
-  status      StreamStatus @default(OFFLINE)
-  streamKey   String       @unique @default(cuid())
-  startedAt   DateTime?
-  endedAt     DateTime?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id            String       @id @default(cuid())
+  channelId     String
+  channel       Channel      @relation(fields: [channelId], references: [id])
+  title         String?
+  description   String?
+  category      String?
+  thumbnail     String?
+  // SHA-256 digest of the raw stream key. The raw key is high-entropy
+  // (crypto.randomBytes) and returned to the owner exactly once (on
+  // creation/rotation); only this deterministic digest is persisted so the
+  // MediaMTX publish webhook can look a presented key up in O(1) without
+  // ever storing (or being able to reconstruct) the secret itself. Null
+  // once revoked — a revoked stream cannot authenticate a publish until
+  // rotated again.
+  streamKeyHash String?      @unique
+  status        StreamStatus @default(OFFLINE)
+  startedAt     DateTime?
+  endedAt       DateTime?
+  // Denormalized live viewer count. Real-time increments/decrements are
+  // expected to be driven by presence tracking (Redis) in a later phase;
+  // persisted here so it survives and is queryable alongside the rest of
+  // the stream's metadata.
+  viewerCount   Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
+  @@index([channelId])
+  @@index([status])
+  @@index([category])
   @@map("streams")
 }
 
 enum StreamStatus {
   OFFLINE
   LIVE
-  STARTING
-  ENDING
+  ENDED
 }
 
 model Follow {

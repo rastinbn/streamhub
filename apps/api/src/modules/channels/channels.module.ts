@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
+import { ChannelsController } from './channels.controller';
+import { ChannelsService } from './channels.service';
 
-/**
- * Placeholder module for the "channels" domain.
- * Business logic (controllers, services, DTOs) will be added in a later
- * phase. This module exists now so the application wiring and dependency
- * graph are established from day one.
- */
-@Module({})
+@Module({
+  controllers: [ChannelsController],
+  providers: [ChannelsService],
+  exports: [ChannelsService],
+})
 export class ChannelsModule {}

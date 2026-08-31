@@ -17,7 +17,7 @@ NestJS API (apps/api)
 ```
 
 - **Web (`apps/web`)** never talks to PostgreSQL or Redis directly. It only calls the API over HTTP.
-- **API (`apps/api`)** is a modular NestJS application. Each domain (auth, users, channels, streams, chat, follows, notifications, moderation, analytics) is its own module, currently empty placeholders, to be implemented phase by phase.
+- **API (`apps/api`)** is a modular NestJS application. Each domain (auth, users, channels, streams, chat, follows, notifications, moderation, analytics) is its own module. `auth`, `users`, `channels`, and `streams` are implemented (see `docs/api-contract.md`); the rest remain empty placeholders, to be implemented phase by phase.
 - **Database (`packages/database`)** is a shared Prisma package. The API imports it; the web app does not (and should not) import it directly, keeping DB access confined to the API layer.
 
 ## 2. Streaming Architecture
@@ -48,7 +48,21 @@ Two flows exist side by side and only interact at the metadata boundary:
 1. **Control-plane flow (data):** Streamer/viewer actions (start stream, view channel, chat) flow through the web app to the API to Postgres/Redis. This is where stream keys are issued, stream status is recorded, and channel data lives.
 2. **Media-plane flow (video):** The actual video bytes flow from OBS to MediaMTX to the browser, entirely outside of the API/Postgres/Redis path.
 
-In later phases, the two flows will connect at specific integration points — for example, MediaMTX calling back to the API to validate a stream key before allowing a publish, or to notify the API when a stream starts/stops so `Stream.status` can be updated. These integration points are deliberately not implemented yet (Phase 1 is structure-only), but the architecture (isolated `mediamtx.yml`, a `streams` module placeholder, a `STREAMING_SERVER_URL` env var for the API to reach MediaMTX's introspection API) is already in place to support them.
+**Phase 5 status:** the notification half of this integration is now implemented —
+MediaMTX's `runOnPublish` / `runOnUnpublish` hooks (`infrastructure/streaming/mediamtx.yml`)
+call back to `POST /api/v1/streams/webhooks/mediamtx/{publish,unpublish}`
+(authenticated via a shared secret, not a user JWT — see `MediaMtxWebhookGuard`), which
+flips `Stream.status` between `OFFLINE → LIVE → ENDED` and stamps `startedAt`/`endedAt`.
+See `docs/api-contract.md`'s Streams section and `docs/domain-model.md` for the full
+lifecycle and stream-key design.
+
+Publish-time *authentication* (MediaMTX itself refusing to accept RTMP data from an
+unrecognized/revoked key, via `authHTTPAddress`) is **not yet wired up** — the API
+still refuses to ever report an unrecognized key's stream as `LIVE`
+(`handlePublish` returns `401` internally), but the raw RTMP ingest is not yet gated at
+the MediaMTX layer itself. That remains a candidate for a later phase if OBS-side key
+enforcement becomes a requirement; `STREAMING_SERVER_URL` remains reserved for the API
+to reach MediaMTX's own introspection API for that (or similar) purposes.
 
 ## 4. Responsibilities of Each Service
 
@@ -58,7 +72,7 @@ In later phases, the two flows will connect at specific integration points — f
 | **NestJS (api)**    | Auth, users, channels, stream metadata, chat, follows, notifications, moderation, analytics | Proxying or transcoding video               |
 | **PostgreSQL**       | Durable, relational source of truth for all application data          | Caching, real-time pub/sub                       |
 | **Redis**              | Caching, session storage where appropriate, pub/sub, presence, real-time infra | Long-term persistence                        |
-| **MediaMTX (streaming)** | RTMP ingest, HLS/LL-HLS output                                     | Authentication, business logic, chat            |
+| **MediaMTX (streaming)** | RTMP ingest, HLS/LL-HLS output, notifying the API of publish/unpublish events | Business logic, chat, gating publishes by key (not yet) |
 
 ## 5. Why the API Does Not Proxy Video
 

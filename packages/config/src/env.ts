@@ -22,10 +22,14 @@ export const envSchema = z.object({
   RTMP_URL: z.string().optional(),
   HLS_URL: z.string().optional(),
   STREAMING_SERVER_URL: z.string().optional(),
+  MEDIAMTX_WEBHOOK_SECRET: z.string().optional(),
 
   // API
   API_PORT: z.coerce.number().int().positive().default(4000),
   API_PREFIX: z.string().default('api'),
+
+  // Security
+  CORS_ORIGIN: z.string().default('http://localhost:3000'),
 
   // Web
   NEXT_PUBLIC_API_URL: z.string().optional(),
@@ -38,11 +42,7 @@ export type Env = z.infer<typeof envSchema>;
  * typed, safe env. Throws a descriptive error if validation fails so
  * misconfiguration is caught at boot time rather than at runtime.
  */
-export function validateEnv(
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-expect-error
-  raw: NodeJS.ProcessEnv = process.env
-): Env {
+export function validateEnv(raw: NodeJS.ProcessEnv = process.env): Env {
   const parsed = envSchema.safeParse(raw);
 
   if (!parsed.success) {

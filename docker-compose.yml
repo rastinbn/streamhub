@@ -51,6 +51,18 @@ services:
       - "9997:9997" # MediaMTX API (health/introspection)
     volumes:
       - ./infrastructure/streaming/mediamtx.yml:/mediamtx.yml:ro
+    environment:
+      # Where the NestJS API is reachable from inside this container. The
+      # API runs on the host (via `pnpm dev`), not in Docker (see the note
+      # at the top of this file) — `host.docker.internal` resolves to the
+      # host machine on Docker Desktop (Mac/Windows) out of the box; the
+      # `extra_hosts` entry below makes the same hostname work on Linux.
+      MEDIAMTX_API_URL: ${MEDIAMTX_API_URL:-http://host.docker.internal:4000}
+      # Must match the API's MEDIAMTX_WEBHOOK_SECRET env var — see
+      # apps/api/src/common/guards/mediamtx-webhook.guard.ts.
+      MEDIAMTX_WEBHOOK_SECRET: ${MEDIAMTX_WEBHOOK_SECRET:-dev-mediamtx-secret}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
   streamhub_postgres_data:

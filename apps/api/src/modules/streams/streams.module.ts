@@ -1,10 +1,15 @@
 import { Module } from '@nestjs/common';
+import { StreamsController } from './streams.controller';
+import { StreamsService } from './streams.service';
 
 /**
- * Placeholder module for the "streams" domain.
- * Business logic (controllers, services, DTOs) will be added in a later
- * phase. This module exists now so the application wiring and dependency
- * graph are established from day one.
+ * Phase 5 — Stream Management. `PrismaService` is provided globally by
+ * `DatabaseModule` (see `app.module.ts`), so it's injected directly into
+ * `StreamsService` without needing to be imported here.
  */
-@Module({})
+@Module({
+  controllers: [StreamsController],
+  providers: [StreamsService],
+  exports: [StreamsService],
+})
 export class StreamsModule {}

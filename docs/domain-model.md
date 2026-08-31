@@ -22,9 +22,11 @@ notifications.
 | `id` | String (cuid) | PK |
 | `username` | String | Unique; used in URLs (`/profile` future) |
 | `email` | String | Unique |
-| `passwordHash` | String? | Nullable (OAuth-ready) |
+| `passwordHash` | String | Required — set at registration (see `auth` module) |
 | `displayName` | String? | |
-| `avatarUrl` | String? | |
+| `avatar` | String? | Avatar image URL |
+| `bio` | String? | Free-text profile bio |
+| `role` | Role | `USER` \| `STREAMER` \| `MODERATOR` \| `ADMIN`; default `USER` |
 | `createdAt` / `updatedAt` | DateTime | |
 
 Relations: `channel` (1:1), `follows` (as follower), `messages` (ChatMessage author),
@@ -37,10 +39,15 @@ streamed.
 | Field | Type | Notes |
 | --- | --- | --- |
 | `id` | String (cuid) | PK |
-| `slug` | String | Unique; URL segment `/channel/[slug]` |
-| `displayName` | String | |
+| `slug` | String | Unique; URL segment `/channel/[slug]`; lowercase, hyphenated |
+| `name` | String | Display name for the channel |
 | `description` | String? | |
-| `ownerId` | String | Unique FK → `User.id` |
+| `avatar` | String? | Channel avatar image URL |
+| `banner` | String? | Channel banner image URL |
+| `category` | String? | Free-text category (e.g. "Programming"); indexed for browse/filter |
+| `followersCount` | Int | Denormalized count, default `0`; maintained by the `follows` module (not yet implemented) |
+| `ownerId` | String | Unique FK → `User.id` (one channel per user) |
+| `createdAt` / `updatedAt` | DateTime | |
 
 Relations: `owner` (User), `streams` (1:N), `followers` (Follow), `chatMessages` (1:N).
 
@@ -51,19 +58,37 @@ metadata record — the actual video bytes live in MediaMTX, never in the databa
 | Field | Type | Notes |
 | --- | --- | --- |
 | `id` | String (cuid) | PK |
-| `channelId` | String | FK → `Channel.id` |
+| `channelId` | String | FK → `Channel.id`; indexed |
 | `title` | String? | |
-| `status` | StreamStatus | Default `OFFLINE` |
-| `streamKey` | String | Unique; issued by API for OBS/RTMP publish |
-| `startedAt` / `endedAt` | DateTime? | Session window |
+| `description` | String? | |
+| `category` | String? | Indexed; free-text, independent of `Channel.category` (a stream's category can differ per-session) |
+| `thumbnail` | String? | Thumbnail image URL |
+| `streamKeyHash` | String? | Unique, nullable; SHA-256 digest of the raw stream key (see below). `null` once revoked |
+| `status` | StreamStatus | Default `OFFLINE`; indexed |
+| `startedAt` / `endedAt` | DateTime? | Session window — set by the MediaMTX publish/unpublish webhooks |
+| `viewerCount` | Int | Denormalized, default `0`; real-time increments via Redis presence are a future phase |
 | `createdAt` / `updatedAt` | DateTime | |
 
 ```prisma
-enum StreamStatus { OFFLINE LIVE STARTING ENDING }
+enum StreamStatus { OFFLINE LIVE ENDED }
 ```
 
-`status` is the control-plane bridge to the media plane: MediaMTX callbacks (future)
-flip it between `STARTING` → `LIVE` → `ENDING` → `OFFLINE`.
+`status` is the control-plane bridge to the media plane: MediaMTX's `runOnPublish` /
+`runOnUnpublish` hooks call back to the API (`POST /streams/webhooks/mediamtx/{publish,unpublish}`,
+see `docs/api-contract.md`), which flips `OFFLINE → LIVE → ENDED`. There is no
+transitional `STARTING`/`ENDING` state — a stream is created `OFFLINE` and moves
+directly to `LIVE`/`ENDED` as those events arrive. A `Stream` row is a single session:
+once `ENDED`, a channel broadcasts again by creating a new `Stream`, not by resetting
+the old one.
+
+**Stream keys:** the raw key (`sk_live_<48 hex chars>`, `crypto.randomBytes`-generated)
+is never persisted — only `streamKeyHash = sha256(rawKey)` is stored, and only for as
+long as the key is active (`null` after `revoke-key`). This is a deliberate departure
+from `User.passwordHash` (bcrypt): stream keys are already high-entropy generated
+secrets rather than user-chosen low-entropy passwords, so a fast, deterministic digest
+is both sufficient against brute-force and — unlike bcrypt — is what lets the publish
+webhook look a presented key up directly instead of comparing against every row. See
+`apps/api/src/modules/streams/stream-key.util.ts`.
 
 ### Follow
 A user's subscription to a channel (powers "Following" and the sidebar followed list).
@@ -156,9 +181,14 @@ The domain model only describes the **control plane** (metadata/state). The
 
 ## 5. Notes & Open Items
 
-- `Stream` does not yet enforce "one active live stream per channel" at the schema
-  level — handle in service logic when `streams` is implemented.
+- ~~`Stream` does not yet enforce "one active live stream per channel"~~ — now enforced
+  in `StreamsService.create` (service-level, not a schema constraint):
+  `POST /streams` returns `409` if the caller's channel already has a `LIVE` stream.
 - `Notification.type` is a free `String` (typed constants live in code, not the DB).
-- `passwordHash` is nullable to allow future OAuth without a password.
+- `passwordHash` is required (set at registration); OAuth-only accounts are not yet
+  supported — would need to relax this constraint in a future migration.
+- `role` (added in the auth phase) is a fixed `Role` enum (`USER`/`STREAMER`/
+  `MODERATOR`/`ADMIN`) rather than a join table — sufficient for now per
+  "do not overcomplicate role management yet".
 - Redis is the real-time/presence store; it is **not** modeled in Prisma (no
   persistence there).

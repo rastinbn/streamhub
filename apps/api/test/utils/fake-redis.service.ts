@@ -52,6 +52,13 @@ export class FakeRedisService {
     return this.client as unknown as import('ioredis').Redis;
   }
 
+  /** Mirrors RedisService.createSubscriber() — returns a second in-memory
+   * client instance so future pub/sub-using code under test gets a distinct
+   * object, matching the real service's contract. */
+  createSubscriber() {
+    return new FakeRedisClient() as unknown as import('ioredis').Redis;
+  }
+
   reset(): void {
     this.client.clear();
   }

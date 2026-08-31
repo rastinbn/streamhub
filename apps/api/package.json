@@ -8,7 +8,9 @@
     "start": "node dist/main.js",
     "lint": "eslint . --ext .ts",
     "typecheck": "tsc --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "test:unit": "jest --testPathPattern=src/",
+    "test:e2e": "jest --testPathPattern=test/"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.1",
@@ -22,6 +24,7 @@
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
+    "helmet": "^7.1.0",
     "ioredis": "^5.4.1",
     "jsonwebtoken": "^9.0.2",
     "reflect-metadata": "^0.2.2",
