@@ -1,5 +1,5 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import type { StreamPublic, StreamStatusView, StreamWithKey } from '@streamhub/types';
+import type { StreamListItem, StreamPublic, StreamStatus, StreamStatusView, StreamWithKey } from '@streamhub/types';
 import { PrismaService } from '../../database/prisma.service';
 import { toPublicStream } from '../../common/mappers';
 import { generateStreamKey, hashStreamKey } from './stream-key.util';
@@ -52,6 +52,41 @@ export class StreamsService {
       throw new NotFoundException('Stream not found');
     }
     return toPublicStream(stream);
+  }
+
+  /**
+   * Lists streams for the browse/discover page. Supports the shared
+   * `@streamhub/types` shape: a flat set of `StreamListItem`s sorted by
+   * `viewerCount` descending. Filtering by `status` is optional — when
+   * omitted, all streams (OFFLINE/LIVE/ENDED) are returned.
+   */
+  async findAll(status?: StreamStatus): Promise<StreamListItem[]> {
+    const streams = await this.prisma.stream.findMany({
+      where: status ? { status } : undefined,
+      orderBy: { viewerCount: 'desc' },
+      include: {
+        channel: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            avatar: true,
+            owner: {
+              select: {
+                id: true,
+                username: true,
+                avatar: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return streams.map(({ streamKeyHash: _streamKeyHash, channel, ...rest }) => ({
+      ...(rest as unknown as Omit<StreamListItem, 'channel'>),
+      channel,
+    }));
   }
 
   async getStatus(id: string): Promise<StreamStatusView> {
