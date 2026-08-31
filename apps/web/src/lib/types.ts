@@ -10,6 +10,7 @@ export interface UserPublic {
   avatar: string | null;
   bio: string | null;
   role: string;
+  emailVerified: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -35,47 +36,4 @@ export interface AuthTokens {
 
 export interface AuthResponse extends AuthTokens {
   user: UserPublic;
-}
-
-export type StreamStatus = 'OFFLINE' | 'LIVE' | 'ENDED';
-
-export interface StreamPublic {
-  id: string;
-  channelId: string;
-  title: string | null;
-  description: string | null;
-  category: string | null;
-  thumbnail: string | null;
-  status: StreamStatus;
-  startedAt: string | null;
-  endedAt: string | null;
-  viewerCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface StreamListItem {
-  id: string;
-  channelId: string;
-  title: string | null;
-  description: string | null;
-  category: string | null;
-  thumbnail: string | null;
-  status: StreamStatus;
-  startedAt: string | null;
-  endedAt: string | null;
-  viewerCount: number;
-  createdAt: string;
-  updatedAt: string;
-  channel: {
-    id: string;
-    name: string;
-    slug: string;
-    avatar: string | null;
-    owner: {
-      id: string;
-      username: string;
-      avatar: string | null;
-    };
-  };
 }

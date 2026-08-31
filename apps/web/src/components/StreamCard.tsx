@@ -1,7 +1,7 @@
 import { MoreVertical, Users } from 'lucide-react';
 
 export interface StreamCardProps {
-  id: number | string;
+  id: number;
   title: string;
   streamerName: string;
   category: string;

@@ -2,14 +2,12 @@
 
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/;
 
 export default function RegisterPage() {
-  const router = useRouter();
   const { register } = useAuth();
 
   const [username, setUsername] = useState('');
@@ -18,6 +16,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
 
   /** Lightweight client-side checks so obvious mistakes are caught before a
    * round trip — the API re-validates everything regardless. */
@@ -53,13 +52,35 @@ export default function RegisterPage() {
     setSubmitting(true);
     try {
       await register({ username, email, password, confirmPassword });
-      router.push('/');
+      setSubmittedEmail(email);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);
     }
   }
+
+  if (submittedEmail) {
+    return (
+      <div className="flex min-h-[calc(100vh-64px)] items-center justify-center px-4 py-12">
+        <div className="w-full max-w-sm rounded-xl border border-outline-variant/30 bg-surface-container-low p-8 text-center shadow-xl">
+          <h1 className="font-display text-headline-md text-on-surface">Check your email</h1>
+          <p className="mt-2 text-body-sm text-on-surface-variant">
+            We sent a verification link to <span className="font-semibold">{submittedEmail}</span>. Click it to
+            activate your account and log in.
+          </p>
+          <p className="mt-6 text-center text-body-sm text-on-surface-variant">
+            Didn&apos;t get it?{' '}
+            <Link href="/login" className="font-semibold text-primary hover:underline">
+              Go to login
+            </Link>{' '}
+            to resend it.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
 
   return (
     <div className="flex min-h-[calc(100vh-64px)] items-center justify-center px-4 py-12">

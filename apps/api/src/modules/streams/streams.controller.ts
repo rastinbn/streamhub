@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { StreamsService } from './streams.service';
 import { CreateStreamDto } from './dto/create-stream.dto';
 import { UpdateStreamDto } from './dto/update-stream.dto';
@@ -7,7 +7,6 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
 import { MediaMtxWebhookGuard } from '../../common/guards/mediamtx-webhook.guard';
-import type { StreamStatus } from '@streamhub/types';
 import type { RequestWithUser } from '../../common/guards/jwt-auth.guard';
 
 @Controller('streams')
@@ -56,13 +55,6 @@ export class StreamsController {
   @Post()
   async create(@Req() req: RequestWithUser, @Body() dto: CreateStreamDto) {
     return { success: true, data: await this.streams.create(req.user.sub, dto) };
-  }
-
-  // Public browse/discover listing. Registered before `@Get(':id')` so the
-  // literal `/streams` path isn't swallowed by the parameterized segment.
-  @Get()
-  async list(@Query('status') status?: StreamStatus) {
-    return { success: true, data: await this.streams.findAll(status) };
   }
 
   @Get(':id')

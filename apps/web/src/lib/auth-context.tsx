@@ -21,12 +21,16 @@ interface AuthContextValue {
   /** True only while the initial session rehydration (on page load) is in flight. */
   loading: boolean;
   login: (input: { identifier: string; password: string }) => Promise<void>;
+  /** Creates the account and sends a verification email. Does not log in. */
   register: (input: {
     username: string;
     email: string;
     password: string;
     confirmPassword: string;
   }) => Promise<void>;
+  /** Consumes a verification token and logs the now-verified user in. */
+  verifyEmail: (token: string) => Promise<void>;
+  resendVerification: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   /** Re-fetches the current user (e.g. after updating the profile). */
   refreshUser: () => Promise<void>;
@@ -87,11 +91,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(
     async (input: { username: string; email: string; password: string; confirmPassword: string }) => {
-      const res = await authApi.register(input);
+      // Registration only creates the account and triggers a verification
+      // email — no session yet, so nothing to persist here.
+      await authApi.register(input);
+    },
+    [],
+  );
+
+  const verifyEmail = useCallback(
+    async (token: string) => {
+      const res = await authApi.verifyEmail(token);
       persistSession(res.accessToken, res.refreshToken, res.user);
     },
     [persistSession],
   );
+
+  const resendVerification = useCallback(async (email: string) => {
+    await authApi.resendVerification(email);
+  }, []);
 
   const logout = useCallback(async () => {
     const refreshToken = window.localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
@@ -116,8 +133,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [accessToken, clearSession]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, accessToken, loading, login, register, logout, refreshUser, setUser }),
-    [user, accessToken, loading, login, register, logout, refreshUser],
+    () => ({
+      user,
+      accessToken,
+      loading,
+      login,
+      register,
+      verifyEmail,
+      resendVerification,
+      logout,
+      refreshUser,
+      setUser,
+    }),
+    [user, accessToken, loading, login, register, verifyEmail, resendVerification, logout, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

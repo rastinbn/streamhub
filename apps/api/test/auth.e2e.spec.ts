@@ -7,6 +7,7 @@ import { PrismaService } from '../src/database/prisma.service';
 import { RedisService } from '../src/redis/redis.service';
 import { FakePrismaService } from './utils/fake-prisma.service';
 import { FakeRedisService } from './utils/fake-redis.service';
+import { MailService } from '../src/mail/mail.service';
 
 /**
  * Phase 2 — Authentication & Users test suite.
@@ -65,7 +66,7 @@ describe('Auth & Users (e2e)', () => {
   };
 
   describe('POST /api/v1/auth/register', () => {
-    it('registers a new user and returns tokens without the password hash', async () => {
+    it('registers a new unverified user and does not return session tokens', async () => {
       const res = await request(app.getHttpServer())
         .post('/api/v1/auth/register')
         .send(validRegisterPayload)
@@ -75,9 +76,10 @@ describe('Auth & Users (e2e)', () => {
       expect(res.body.data.user.username).toBe('codeninja');
       expect(res.body.data.user.email).toBe('codeninja@example.com');
       expect(res.body.data.user.role).toBe('USER');
+      expect(res.body.data.user.emailVerified).toBe(false);
       expect(res.body.data.user.passwordHash).toBeUndefined();
-      expect(typeof res.body.data.accessToken).toBe('string');
-      expect(typeof res.body.data.refreshToken).toBe('string');
+      expect(res.body.data.accessToken).toBeUndefined();
+      expect(res.body.data.refreshToken).toBeUndefined();
     });
 
     it('rejects a duplicate username', async () => {
@@ -142,7 +144,23 @@ describe('Auth & Users (e2e)', () => {
       await request(app.getHttpServer()).post('/api/v1/auth/register').send(validRegisterPayload);
     });
 
-    it('logs in with a valid username + password', async () => {
+    async function verify() {
+      const stored = await prisma.user.findUnique({ where: { username: 'codeninja' } });
+      await prisma.user.update({ where: { id: stored!.id }, data: { emailVerified: true } });
+    }
+
+    it('rejects login before the email is verified', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ identifier: 'codeninja', password: 'correct-horse-1' })
+        .expect(403);
+
+      expect(res.body.error.message).toMatch(/verify/i);
+    });
+
+    it('logs in with a valid username + password once verified', async () => {
+      await verify();
+
       const res = await request(app.getHttpServer())
         .post('/api/v1/auth/login')
         .send({ identifier: 'codeninja', password: 'correct-horse-1' })
@@ -152,7 +170,9 @@ describe('Auth & Users (e2e)', () => {
       expect(typeof res.body.data.accessToken).toBe('string');
     });
 
-    it('logs in with a valid email + password', async () => {
+    it('logs in with a valid email + password once verified', async () => {
+      await verify();
+
       const res = await request(app.getHttpServer())
         .post('/api/v1/auth/login')
         .send({ identifier: 'codeninja@example.com', password: 'correct-horse-1' })
@@ -162,6 +182,8 @@ describe('Auth & Users (e2e)', () => {
     });
 
     it('rejects an invalid password with a generic error', async () => {
+      await verify();
+
       const res = await request(app.getHttpServer())
         .post('/api/v1/auth/login')
         .send({ identifier: 'codeninja', password: 'wrong-password' })
@@ -182,11 +204,72 @@ describe('Auth & Users (e2e)', () => {
     });
   });
 
+  describe('Email verification', () => {
+    it('rejects an unknown or garbage token', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/auth/verify-email')
+        .send({ token: 'a'.repeat(64) })
+        .expect(400);
+
+      expect(res.body.error.message).toMatch(/invalid or has expired/i);
+    });
+
+    it('logs the user in once a valid verification token is confirmed', async () => {
+      const mail = app.get(MailService);
+      const sendSpy = jest.spyOn(mail, 'sendVerificationEmail').mockResolvedValue();
+
+      await request(app.getHttpServer()).post('/api/v1/auth/register').send(validRegisterPayload).expect(201);
+
+      // register() triggers exactly one verification email; pull the raw
+      // token out of the link that was "sent" to get something to verify.
+      const [, verifyUrl] = sendSpy.mock.calls.at(-1)!;
+      const token = new URL(verifyUrl).searchParams.get('token')!;
+      sendSpy.mockRestore();
+
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/auth/verify-email')
+        .send({ token })
+        .expect(201);
+
+      expect(res.body.data.user.emailVerified).toBe(true);
+      expect(typeof res.body.data.accessToken).toBe('string');
+    });
+
+    it('rejects reusing an already-consumed token', async () => {
+      const mail = app.get(MailService);
+      const sendSpy = jest.spyOn(mail, 'sendVerificationEmail').mockResolvedValue();
+
+      await request(app.getHttpServer()).post('/api/v1/auth/register').send(validRegisterPayload).expect(201);
+
+      const [, verifyUrl] = sendSpy.mock.calls.at(-1)!;
+      const token = new URL(verifyUrl).searchParams.get('token')!;
+      sendSpy.mockRestore();
+
+      await request(app.getHttpServer()).post('/api/v1/auth/verify-email').send({ token }).expect(201);
+
+      await request(app.getHttpServer()).post('/api/v1/auth/verify-email').send({ token }).expect(400);
+    });
+  });
+
+  describe('POST /api/v1/auth/resend-verification', () => {
+    it('always returns success, even for an unknown email', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/auth/resend-verification')
+        .send({ email: 'nobody@example.com' })
+        .expect(201);
+
+      expect(res.body.data.sent).toBe(true);
+    });
+  });
+
   describe('Protected endpoints', () => {
     async function registerAndLogin() {
+      await request(app.getHttpServer()).post('/api/v1/auth/register').send(validRegisterPayload);
+      const stored = await prisma.user.findUnique({ where: { username: validRegisterPayload.username } });
+      await prisma.user.update({ where: { id: stored!.id }, data: { emailVerified: true } });
       const res = await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
-        .send(validRegisterPayload);
+        .post('/api/v1/auth/login')
+        .send({ identifier: validRegisterPayload.username, password: validRegisterPayload.password });
       return res.body.data as { accessToken: string; refreshToken: string };
     }
 
@@ -250,9 +333,12 @@ describe('Auth & Users (e2e)', () => {
 
   describe('Refresh & logout', () => {
     async function registerAndLogin() {
+      await request(app.getHttpServer()).post('/api/v1/auth/register').send(validRegisterPayload);
+      const stored = await prisma.user.findUnique({ where: { username: validRegisterPayload.username } });
+      await prisma.user.update({ where: { id: stored!.id }, data: { emailVerified: true } });
       const res = await request(app.getHttpServer())
-        .post('/api/v1/auth/register')
-        .send(validRegisterPayload);
+        .post('/api/v1/auth/login')
+        .send({ identifier: validRegisterPayload.username, password: validRegisterPayload.password });
       return res.body.data as { accessToken: string; refreshToken: string };
     }
 
