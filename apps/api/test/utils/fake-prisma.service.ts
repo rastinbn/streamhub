@@ -15,21 +15,8 @@ export interface FakeUserRow {
   avatar: string | null;
   bio: string | null;
   role: 'USER' | 'STREAMER' | 'MODERATOR' | 'ADMIN';
-  emailVerified: boolean;
   createdAt: Date;
   updatedAt: Date;
-}
-
-/**
- * Minimal shape of `email_verification_tokens` rows.
- */
-export interface FakeEmailVerificationTokenRow {
-  id: string;
-  userId: string;
-  tokenHash: string;
-  expiresAt: Date;
-  consumedAt: Date | null;
-  createdAt: Date;
 }
 
 /**
@@ -57,7 +44,7 @@ type CreateInput = {
   role?: FakeUserRow['role'];
 };
 
-type UpdateInput = Partial<Pick<FakeUserRow, 'displayName' | 'avatar' | 'bio' | 'emailVerified'>>;
+type UpdateInput = Partial<Pick<FakeUserRow, 'displayName' | 'avatar' | 'bio'>>;
 
 type CreateChannelInput = {
   ownerId: string;
@@ -119,20 +106,13 @@ export class FakePrismaService {
   private rows: FakeUserRow[] = [];
   private channelRows: FakeChannelRow[] = [];
   private streamRows: FakeStreamRow[] = [];
-  private verificationTokenRows: FakeEmailVerificationTokenRow[] = [];
 
   /** Test helper: reset state between test cases. */
   reset(): void {
     this.rows = [];
     this.channelRows = [];
     this.streamRows = [];
-    this.verificationTokenRows = [];
   }
-
-  /** Test helper: run queued operations against this same in-memory store. */
-  $transaction = async <T extends unknown[]>(ops: [...{ [K in keyof T]: Promise<T[K]> }]): Promise<T> => {
-    return Promise.all(ops) as unknown as Promise<T>;
-  };
 
   /** Test helper: seed a row directly, bypassing the "create" API. */
   seed(row: Partial<FakeUserRow> & { username: string; email: string; passwordHash: string }): FakeUserRow {
@@ -146,7 +126,6 @@ export class FakePrismaService {
       avatar: row.avatar ?? null,
       bio: row.bio ?? null,
       role: row.role ?? 'USER',
-      emailVerified: row.emailVerified ?? false,
       createdAt: row.createdAt ?? now,
       updatedAt: row.updatedAt ?? now,
     };
@@ -184,7 +163,6 @@ export class FakePrismaService {
         avatar: null,
         bio: null,
         role: data.role ?? 'USER',
-        emailVerified: false,
         createdAt: now,
         updatedAt: now,
       };
@@ -198,45 +176,7 @@ export class FakePrismaService {
       if (data.displayName !== undefined) row.displayName = data.displayName ?? null;
       if (data.avatar !== undefined) row.avatar = data.avatar ?? null;
       if (data.bio !== undefined) row.bio = data.bio ?? null;
-      if (data.emailVerified !== undefined) row.emailVerified = data.emailVerified;
       row.updatedAt = new Date();
-      return row;
-    },
-  };
-
-  emailVerificationToken = {
-    create: async ({
-      data,
-    }: {
-      data: { userId: string; tokenHash: string; expiresAt: Date };
-    }) => {
-      const now = new Date();
-      const row: FakeEmailVerificationTokenRow = {
-        id: randomUUID(),
-        userId: data.userId,
-        tokenHash: data.tokenHash,
-        expiresAt: data.expiresAt,
-        consumedAt: null,
-        createdAt: now,
-      };
-      this.verificationTokenRows.push(row);
-      return row;
-    },
-
-    findUnique: async ({ where }: { where: { tokenHash: string } }) => {
-      return this.verificationTokenRows.find((row) => row.tokenHash === where.tokenHash) ?? null;
-    },
-
-    update: async ({
-      where,
-      data,
-    }: {
-      where: { id: string };
-      data: { consumedAt?: Date };
-    }) => {
-      const row = this.verificationTokenRows.find((r) => r.id === where.id);
-      if (!row) throw new Error('Record to update not found.');
-      if (data.consumedAt !== undefined) row.consumedAt = data.consumedAt;
       return row;
     },
   };

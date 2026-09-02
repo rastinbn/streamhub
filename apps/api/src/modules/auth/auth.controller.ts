@@ -3,8 +3,6 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
-import { VerifyEmailDto } from './dto/verify-email.dto';
-import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import type { RequestWithUser } from '../../common/guards/jwt-auth.guard';
 
@@ -20,18 +18,6 @@ export class AuthController {
   @Post('login')
   async login(@Body() dto: LoginDto) {
     return { success: true, data: await this.auth.login(dto) };
-  }
-
-  @Post('verify-email')
-  async verifyEmail(@Body() dto: VerifyEmailDto) {
-    return { success: true, data: await this.auth.verifyEmail(dto.token) };
-  }
-
-  @Post('resend-verification')
-  async resendVerification(@Body() dto: ResendVerificationDto) {
-    await this.auth.resendVerificationEmail(dto.email);
-    // Always a generic success — see AuthService.resendVerificationEmail for why.
-    return { success: true, data: { sent: true } };
   }
 
   @Post('refresh')

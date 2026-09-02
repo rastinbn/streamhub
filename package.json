@@ -7,6 +7,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
+    "predev": "pnpm --filter @streamhub/config --filter @streamhub/types --filter @streamhub/database build",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",

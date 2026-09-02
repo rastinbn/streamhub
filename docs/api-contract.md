@@ -164,7 +164,6 @@ Responses:
 
 ---
 
-<<<<<<< HEAD
 ## Streams — `/streams` *(Phase 5)*
 
 | Method | Path | Auth | Description |
@@ -335,8 +334,6 @@ Body:
 
 ---
 
-=======
->>>>>>> 0cf52a31b18290e13b9061d9534be027c4cc2000
 ## Error codes
 
 The `error.code` field is the HTTP status name (e.g. `BAD_REQUEST`, `CONFLICT`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`). `error.message` is safe to show to end users; 500-level errors always return a generic `"Internal server error"` message regardless of the underlying cause (see `AllExceptionsFilter`).

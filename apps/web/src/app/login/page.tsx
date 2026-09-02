@@ -8,46 +8,24 @@ import { useAuth } from '@/lib/auth-context';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, resendVerification } = useAuth();
+  const { login } = useAuth();
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [needsVerification, setNeedsVerification] = useState(false);
-  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle');
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    setNeedsVerification(false);
-    setResendState('idle');
     setSubmitting(true);
     try {
       await login({ identifier, password });
       router.push('/');
     } catch (err) {
-      if (err instanceof ApiError && err.status === 403) {
-        setNeedsVerification(true);
-        setError(err.message);
-      } else {
-        setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
-      }
+      setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  async function onResend() {
-    // The identifier field doubles as email/username on this form; resend
-    // only makes sense with an email, but the endpoint no-ops harmlessly on
-    // a username or unknown address rather than erroring.
-    setResendState('sending');
-    try {
-      await resendVerification(identifier);
-      setResendState('sent');
-    } catch {
-      setResendState('idle');
     }
   }
 
@@ -96,21 +74,6 @@ export default function LoginPage() {
             <p role="alert" className="rounded-lg bg-error-container px-3 py-2 text-body-sm text-on-error-container">
               {error}
             </p>
-          )}
-
-          {needsVerification && (
-            <button
-              type="button"
-              onClick={onResend}
-              disabled={resendState === 'sending' || resendState === 'sent'}
-              className="text-left text-body-sm font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {resendState === 'sent'
-                ? 'Verification email sent — check your inbox.'
-                : resendState === 'sending'
-                  ? 'Sending…'
-                  : 'Resend verification email'}
-            </button>
           )}
 
           <button

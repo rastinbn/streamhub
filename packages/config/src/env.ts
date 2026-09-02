@@ -33,18 +33,6 @@ export const envSchema = z.object({
 
   // Web
   NEXT_PUBLIC_API_URL: z.string().optional(),
-
-  // Email (verification, password reset, etc.)
-  // SMTP_HOST left unset in dev — MailService falls back to logging emails
-  // to the console instead of sending them.
-  SMTP_HOST: z.string().optional(),
-  SMTP_PORT: z.coerce.number().int().positive().default(587),
-  SMTP_SECURE: z.coerce.boolean().default(false),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASSWORD: z.string().optional(),
-  MAIL_FROM: z.string().default('StreamHub <no-reply@streamhub.local>'),
-  // Public URL of the web app, used to build links inside emails.
-  WEB_APP_URL: z.string().default('http://localhost:3000'),
 });
 
 export type Env = z.infer<typeof envSchema>;

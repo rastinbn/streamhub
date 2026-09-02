@@ -17,11 +17,7 @@ NestJS API (apps/api)
 ```
 
 - **Web (`apps/web`)** never talks to PostgreSQL or Redis directly. It only calls the API over HTTP.
-<<<<<<< HEAD
 - **API (`apps/api`)** is a modular NestJS application. Each domain (auth, users, channels, streams, chat, follows, notifications, moderation, analytics) is its own module. `auth`, `users`, `channels`, and `streams` are implemented (see `docs/api-contract.md`); the rest remain empty placeholders, to be implemented phase by phase.
-=======
-- **API (`apps/api`)** is a modular NestJS application. Each domain (auth, users, channels, streams, chat, follows, notifications, moderation, analytics) is its own module. `auth`, `users`, and `channels` are implemented (see `docs/api-contract.md`); the rest remain empty placeholders, to be implemented phase by phase.
->>>>>>> 0cf52a31b18290e13b9061d9534be027c4cc2000
 - **Database (`packages/database`)** is a shared Prisma package. The API imports it; the web app does not (and should not) import it directly, keeping DB access confined to the API layer.
 
 ## 2. Streaming Architecture

@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import { Space_Grotesk, Inter } from 'next/font/google';
-import { AuthProvider } from '@/lib/auth-context';
 import AppShell from '@/components/AppShell';
+import { AuthProvider } from '@/lib/auth-context';
 import './globals.css';
+
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -10,6 +11,7 @@ const spaceGrotesk = Space_Grotesk({
   variable: '--font-display',
   display: 'swap',
 });
+
 
 const inter = Inter({
   subsets: ['latin'],
@@ -22,6 +24,7 @@ export const metadata: Metadata = {
   title: 'StreamHub',
   description: 'Watch and go live.',
 };
+
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
