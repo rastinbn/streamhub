@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import TopNav from '@/components/TopNav';
-import Sidebar from '@/components/Sidebar';
+import TopNav from '@/components/layout/TopNav';
+import Sidebar from '@/components/layout/Sidebar';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);

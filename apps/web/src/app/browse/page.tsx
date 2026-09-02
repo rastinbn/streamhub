@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import StreamCard, { StreamCardProps } from '@/components/StreamCard';
+import StreamCard, { StreamCardProps } from '@/components/streams/StreamCard';
 import {
   ChevronDown,
   Radio,
