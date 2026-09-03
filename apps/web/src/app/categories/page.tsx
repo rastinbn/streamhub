@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import CategoryCard, { type CategoryCardProps } from '@/components/channel/CategoryCard';
+import CategoryCard, { type CategoryCardProps } from '@/components/CategoryCard';
 import { LayoutGrid, Gamepad2, Users, Music2, Cpu, Trophy, Palette } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 

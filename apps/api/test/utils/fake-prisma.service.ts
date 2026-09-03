@@ -133,6 +133,48 @@ export class FakePrismaService {
     return full;
   }
 
+  /** Test helper: seed a channel row directly. */
+  seedChannel(row: Partial<FakeChannelRow> & { ownerId: string; slug: string; name: string }): FakeChannelRow {
+    const now = new Date();
+    const full: FakeChannelRow = {
+      id: row.id ?? randomUUID(),
+      ownerId: row.ownerId,
+      slug: row.slug,
+      name: row.name,
+      description: row.description ?? null,
+      avatar: row.avatar ?? null,
+      banner: row.banner ?? null,
+      category: row.category ?? null,
+      followersCount: row.followersCount ?? 0,
+      createdAt: row.createdAt ?? now,
+      updatedAt: row.updatedAt ?? now,
+    };
+    this.channelRows.push(full);
+    return full;
+  }
+
+  /** Test helper: seed a stream row directly. */
+  seedStream(row: Partial<FakeStreamRow> & { channelId: string }): FakeStreamRow {
+    const now = new Date();
+    const full: FakeStreamRow = {
+      id: row.id ?? randomUUID(),
+      channelId: row.channelId,
+      title: row.title ?? null,
+      description: row.description ?? null,
+      category: row.category ?? null,
+      thumbnail: row.thumbnail ?? null,
+      streamKeyHash: row.streamKeyHash ?? null,
+      status: row.status ?? 'OFFLINE',
+      startedAt: row.startedAt ?? null,
+      endedAt: row.endedAt ?? null,
+      viewerCount: row.viewerCount ?? 0,
+      createdAt: row.createdAt ?? now,
+      updatedAt: row.updatedAt ?? now,
+    };
+    this.streamRows.push(full);
+    return full;
+  }
+
   user = {
     findFirst: async ({ where }: { where: { OR: Array<Record<string, string>> } }) => {
       const conditions = where.OR;
@@ -227,16 +269,29 @@ export class FakePrismaService {
   };
 
   stream = {
-    findUnique: async ({ where }: { where: { id?: string; streamKeyHash?: string | null } }) => {
-      if (where.id) return this.streamRows.find((row) => row.id === where.id) ?? null;
-      if (where.streamKeyHash !== undefined) {
+    findUnique: async ({
+      where,
+      include,
+    }: {
+      where: { id?: string; streamKeyHash?: string | null };
+      include?: { channel?: boolean | { select?: Record<string, boolean> } };
+    }) => {
+      let row: FakeStreamRow | null = null;
+      if (where.id) row = this.streamRows.find((r) => r.id === where.id) ?? null;
+      else if (where.streamKeyHash !== undefined) {
         // A `null` streamKeyHash is not unique in Postgres (multiple
         // revoked streams can all have a null hash), so — matching that —
         // never resolve a lookup keyed on `null`.
-        if (where.streamKeyHash === null) return null;
-        return this.streamRows.find((row) => row.streamKeyHash === where.streamKeyHash) ?? null;
+        row = where.streamKeyHash === null
+          ? null
+          : this.streamRows.find((r) => r.streamKeyHash === where.streamKeyHash) ?? null;
       }
-      return null;
+      if (!row) return null;
+      if (include?.channel) {
+        const channel = this.channelRows.find((c) => c.id === row!.channelId) ?? null;
+        return { ...row, channel };
+      }
+      return row;
     },
 
     findFirst: async ({

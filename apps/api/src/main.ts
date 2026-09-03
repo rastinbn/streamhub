@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -12,6 +13,10 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger,
   });
+
+  // Enables @WebSocketGateway() (chat) to run over Socket.IO on the same
+  // HTTP server/port as the REST API.
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   // Security headers (HSTS, X-Content-Type-Options, X-Frame-Options, etc.).
   // `crossOriginResourcePolicy` is relaxed since the API legitimately serves

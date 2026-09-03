@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { Space_Grotesk, Inter } from 'next/font/google';
-import AppShell from '@/components/layout/AppShell';
+import AppShell from '@/components/AppShell';
 import { AuthProvider } from '@/lib/auth-context';
 import './globals.css';
 

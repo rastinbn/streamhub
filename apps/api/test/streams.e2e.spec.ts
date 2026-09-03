@@ -102,7 +102,7 @@ describe('Streams (e2e)', () => {
   // POST /api/v1/streams — creation
   // -------------------------------------------------------------------
   describe('POST /api/v1/streams', () => {
-    it('creates a stream for the caller\'s own channel and returns a one-time stream key', async () => {
+    it("creates a stream for the caller's own channel and returns a one-time stream key", async () => {
       const { accessToken } = await registerUserWithChannel();
 
       const res = await request(app.getHttpServer())
