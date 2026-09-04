@@ -24,7 +24,6 @@ export function useStreams(
   const [isError, setIsError] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const statusRef = useRef(status);
-  statusRef.current = status;
   const pollIntervalRef = useRef(pollInterval);
   pollIntervalRef.current = pollInterval;
 
@@ -43,12 +42,13 @@ export function useStreams(
   }, []);
 
   useEffect(() => {
+    statusRef.current = status;
     void refetch();
 
     if (!pollIntervalRef.current) return;
     const id = setInterval(() => void refetch(), pollIntervalRef.current);
     return () => clearInterval(id);
-  }, [refetch]);
+  }, [refetch, status]);
 
   return { streams, isLoading, isError, error, refetch };
 }
