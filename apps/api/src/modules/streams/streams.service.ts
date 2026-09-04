@@ -5,10 +5,61 @@ import { toPublicStream } from '../../common/mappers';
 import { generateStreamKey, hashStreamKey } from './stream-key.util';
 import { CreateStreamDto } from './dto/create-stream.dto';
 import { UpdateStreamDto } from './dto/update-stream.dto';
+import { ListStreamsQueryDto } from './dto/list-streams-query.dto';
 
 @Injectable()
 export class StreamsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Browse/search streams — deliberately NOT cached. `status`/`viewerCount`
+   * are exactly the "dynamic live state" the task says not to over-cache: a
+   * cached page could show a stream as LIVE minutes after it ended, or miss
+   * one that just went live. See docs/api-contract.md's Performance note.
+   */
+  async list(query: ListStreamsQueryDto) {
+    const where: Record<string, unknown> = {};
+    if (query.search) {
+      where.title = { contains: query.search, mode: 'insensitive' as const };
+    }
+    if (query.category) {
+      where.category = query.category;
+    }
+    if (query.status) {
+      where.status = query.status;
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.stream.findMany({
+        where,
+        orderBy: { [query.sortBy ?? 'viewerCount']: query.order ?? 'desc' },
+        skip: query.skip,
+        take: query.take,
+      }),
+      this.prisma.stream.count({ where }),
+    ]);
+
+    return {
+      items: items.map((s: unknown) => toPublicStream(s as { streamKeyHash: unknown })),
+      total,
+      page: query.page ?? 1,
+      limit: query.limit ?? 20,
+    };
+  }
+
+  /**
+   * `GET /streams/live` — shorthand for `list({ status: 'LIVE' })`.
+   *
+   * Mutates `status` on the existing DTO instance rather than spreading it
+   * into a new plain object (`{ ...query, status: 'LIVE' }`) — `skip`/
+   * `take` are getters defined on `PaginationQueryDto`'s prototype, not own
+   * properties, so a spread silently drops them, leaving `list()` with
+   * `skip`/`take` both `undefined` and no pagination limit applied at all.
+   */
+  async listLive(query: ListStreamsQueryDto) {
+    query.status = 'LIVE';
+    return this.list(query);
+  }
 
   /**
    * Creates a new stream session for the caller's own channel. Mirrors

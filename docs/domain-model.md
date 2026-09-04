@@ -99,7 +99,47 @@ A user's subscription to a channel (powers "Following" and the sidebar followed 
 | `followerId` | String | FK → `User.id` (relation `FollowerUser`) |
 | `channelId` | String | FK → `Channel.id` (relation `FollowedChannel`) |
 | `createdAt` | DateTime | |
-| `@@unique([followerId, channelId])` | | No duplicate follows |
+| `@@unique([followerId, channelId])` | | No duplicate follows — enforced at the schema level, not just in application code |
+| `@@index([channelId])` | | *(Phase 7)* The unique index above only accelerates lookups starting with `followerId` (leftmost prefix) — "who does user X follow" (`GET /users/me/following`). This standalone index covers the other direction, "who follows channel Y" (`GET /channels/:id/followers`), which the compound index alone can't serve efficiently. |
+
+`Channel.followersCount` is a denormalized counter kept in sync transactionally on
+every follow/unfollow (`FollowsService`, Phase 7) — it's a read optimization (browse/
+search sorting by popularity without a `COUNT(*)` join), not the source of truth; the
+`Follow` rows themselves are.
+
+### Category *(Phase 7)*
+An admin-managed catalog of browse/stream categories (e.g. "Gaming", "Just Chatting").
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | String (cuid) | PK |
+| `name` | String | Unique |
+| `slug` | String | Unique, `^[a-z0-9]+(-[a-z0-9]+)*$` |
+| `description` | String? | |
+| `thumbnail` | String? | Image URL |
+| `createdAt` / `updatedAt` | DateTime | |
+| `@@index([name])` | | Supports both slug-style lookups and `ILIKE`-based search |
+
+**Deliberately not a hard FK.** `Channel.category` and `Stream.category` (added in
+Phases 3 and 5 respectively) both remain plain, freeform `String?` columns — `Category`
+does not replace or constrain them in this phase. Reasoning:
+
+- Converting two existing, already-populated columns to a `categoryId` FK is a real
+  migration with real risk (backfilling every row to a matching `Category`, deciding
+  what happens to values with no catalog match) for a benefit — referential integrity
+  on a field that's really just a browse/filter tag — that doesn't clearly outweigh
+  that risk in this phase.
+- The catalog is still genuinely useful on its own: it's what `GET /categories` browses
+  and what `POST/PATCH/DELETE /categories` lets admins curate (canonical name,
+  description, thumbnail for a "browse by category" grid) — none of that requires the
+  *other* tables to point at it.
+- `GET /streams?category=` and `GET /channels?category=` continue to filter on the
+  existing freeform string column, matched against a category's `name` by convention
+  (documented, not enforced).
+
+A future phase could tighten this into a real FK once category-name adoption stabilizes
+(i.e. once it's clear streamers are actually picking from the catalog rather than typing
+arbitrary strings) — noted here rather than deferred silently.
 
 ### ChatMessage
 A chat message sent in a channel's stream (real-time, via WebSocket + Redis pub/sub).
@@ -192,3 +232,5 @@ The domain model only describes the **control plane** (metadata/state). The
   "do not overcomplicate role management yet".
 - Redis is the real-time/presence store; it is **not** modeled in Prisma (no
   persistence there).
+- `Category` (Phase 7) is intentionally **not** a hard FK from `Channel.category` /
+  `Stream.category` — see the Category entity section above for the full reasoning.

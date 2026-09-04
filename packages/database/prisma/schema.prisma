@@ -21,15 +21,34 @@ model User {
   avatar       String?
   bio          String?
   role         Role     @default(USER)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  emailVerified Boolean @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   channel   Channel?
   follows   Follow[]       @relation("FollowerUser")
   messages  ChatMessage[]
   notifications Notification[]
+  emailVerificationTokens EmailVerificationToken[]
 
   @@map("users")
+}
+
+// Single-use tokens emailed to a user to confirm ownership of their email
+// address. Only the SHA-256 digest of the token is stored (mirrors
+// Stream.streamKeyHash) so a leaked database dump can't be used to verify
+// arbitrary accounts. Rows are consumed (consumedAt set) or left to expire.
+model EmailVerificationToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@map("email_verification_tokens")
 }
 
 enum Role {
@@ -58,6 +77,7 @@ model Channel {
   chatMessages ChatMessage[]
 
   @@index([category])
+  @@index([name])
   @@map("channels")
 }
 
@@ -91,6 +111,7 @@ model Stream {
   @@index([channelId])
   @@index([status])
   @@index([category])
+  @@index([title])
   @@map("streams")
 }
 
@@ -109,7 +130,34 @@ model Follow {
   createdAt    DateTime @default(now())
 
   @@unique([followerId, channelId])
+  // The compound unique index above is a leftmost-prefix index on
+  // `followerId` — great for "who does user X follow" (GET
+  // /users/me/following) but useless for "who follows channel Y" (GET
+  // /channels/:id/followers), which filters on the *second* column only.
+  // This index covers that direction.
+  @@index([channelId])
   @@map("follows")
+}
+
+// Phase 7 — Social & Discovery: an admin-managed catalog of stream/browse
+// categories (e.g. "Just Chatting", "Gaming"). Deliberately NOT a hard FK
+// from Channel.category / Stream.category (both remain freeform strings
+// from earlier phases) — see docs/domain-model.md §5 for the reasoning.
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  thumbnail   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Simple prefix/equality index for slug lookups and ILIKE-based search on
+  // name. A production deployment with a large catalog would likely add a
+  // pg_trgm GIN index for fast substring search — noted, not implemented,
+  // since it requires a Postgres extension this environment can't verify.
+  @@index([name])
+  @@map("categories")
 }
 
 model ChatMessage {

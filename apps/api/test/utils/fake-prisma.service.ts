@@ -15,8 +15,23 @@ export interface FakeUserRow {
   avatar: string | null;
   bio: string | null;
   role: 'USER' | 'STREAMER' | 'MODERATOR' | 'ADMIN';
+  emailVerified: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/**
+ * Minimal shape of the `email_verification_tokens` rows the auth module
+ * operates on. Mirrors the Prisma `EmailVerificationToken` model fields
+ * actually touched by the API.
+ */
+export interface FakeEmailVerificationTokenRow {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  expiresAt: Date;
+  consumedAt: Date | null;
+  createdAt: Date;
 }
 
 /**
@@ -44,7 +59,7 @@ type CreateInput = {
   role?: FakeUserRow['role'];
 };
 
-type UpdateInput = Partial<Pick<FakeUserRow, 'displayName' | 'avatar' | 'bio'>>;
+type UpdateInput = Partial<Pick<FakeUserRow, 'displayName' | 'avatar' | 'bio' | 'emailVerified'>>;
 
 type CreateChannelInput = {
   ownerId: string;
@@ -58,7 +73,7 @@ type CreateChannelInput = {
 
 type UpdateChannelInput = Partial<
   Pick<FakeChannelRow, 'name' | 'slug' | 'description' | 'avatar' | 'banner' | 'category'>
->;
+> & { followersCount?: { increment?: number; decrement?: number } };
 
 /**
  * Minimal shape of the `streams` rows the streams module operates on.
@@ -96,6 +111,54 @@ type UpdateStreamInput = Partial<
   >
 >;
 
+/** Minimal shape of the `follows` rows the follows module operates on. */
+export interface FakeFollowRow {
+  id: string;
+  followerId: string;
+  channelId: string;
+  createdAt: Date;
+}
+
+/** Minimal shape of the `categories` rows the categories module operates on. */
+export interface FakeCategoryRow {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  thumbnail: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+type CreateCategoryInput = {
+  name: string;
+  slug: string;
+  description?: string;
+  thumbnail?: string;
+};
+
+type UpdateCategoryInput = Partial<Pick<FakeCategoryRow, 'name' | 'slug' | 'description' | 'thumbnail'>>;
+
+type ListWhere = Record<string, unknown>;
+
+/** Very small `where` matcher: supports plain equality and the two Prisma
+ * shapes this codebase's list endpoints actually use — `{ contains, mode }`
+ * (case-insensitive substring) and `{ OR: [...] }`. Enough to faithfully
+ * exercise the real service code without reimplementing Prisma. */
+function matchesWhere(row: Record<string, unknown>, where: ListWhere): boolean {
+  return Object.entries(where).every(([key, condition]) => {
+    if (key === 'OR' && Array.isArray(condition)) {
+      return condition.some((sub: ListWhere) => matchesWhere(row, sub));
+    }
+    if (condition && typeof condition === 'object' && 'contains' in (condition as Record<string, unknown>)) {
+      const needle = String((condition as { contains: string }).contains).toLowerCase();
+      const haystack = String(row[key] ?? '').toLowerCase();
+      return haystack.includes(needle);
+    }
+    return row[key] === condition;
+  });
+}
+
 /**
  * Drop-in replacement for `PrismaService`, implementing only the subset of
  * the Prisma Client API that the auth/users/channels modules call. Backed by
@@ -104,14 +167,31 @@ type UpdateStreamInput = Partial<
 @Injectable()
 export class FakePrismaService {
   private rows: FakeUserRow[] = [];
+  private emailVerificationTokenRows: FakeEmailVerificationTokenRow[] = [];
   private channelRows: FakeChannelRow[] = [];
   private streamRows: FakeStreamRow[] = [];
+  private followRows: FakeFollowRow[] = [];
+  private categoryRows: FakeCategoryRow[] = [];
 
   /** Test helper: reset state between test cases. */
   reset(): void {
     this.rows = [];
+    this.emailVerificationTokenRows = [];
     this.channelRows = [];
     this.streamRows = [];
+    this.followRows = [];
+    this.categoryRows = [];
+  }
+
+  /**
+   * Mirrors `PrismaClient.$transaction([...])`. The array elements are
+   * already-in-flight promises (each fake model method starts executing as
+   * soon as it's called, same as a real `PrismaPromise` once awaited) —
+   * this fake doesn't need real atomicity/rollback to faithfully exercise
+   * the calling service code, so it's just a `Promise.all`.
+   */
+  async $transaction<T extends unknown[]>(ops: [...T]): Promise<T> {
+    return (await Promise.all(ops)) as T;
   }
 
   /** Test helper: seed a row directly, bypassing the "create" API. */
@@ -126,6 +206,7 @@ export class FakePrismaService {
       avatar: row.avatar ?? null,
       bio: row.bio ?? null,
       role: row.role ?? 'USER',
+      emailVerified: row.emailVerified ?? false,
       createdAt: row.createdAt ?? now,
       updatedAt: row.updatedAt ?? now,
     };
@@ -175,6 +256,31 @@ export class FakePrismaService {
     return full;
   }
 
+  /** Test helper: seed a category row directly. */
+  seedCategory(row: Partial<FakeCategoryRow> & { name: string; slug: string }): FakeCategoryRow {
+    const now = new Date();
+    const full: FakeCategoryRow = {
+      id: row.id ?? randomUUID(),
+      name: row.name,
+      slug: row.slug,
+      description: row.description ?? null,
+      thumbnail: row.thumbnail ?? null,
+      createdAt: row.createdAt ?? now,
+      updatedAt: row.updatedAt ?? now,
+    };
+    this.categoryRows.push(full);
+    return full;
+  }
+
+  /** Test helper: promote an already-registered user to ADMIN — there is
+   * no production endpoint for this (admin bootstrapping is an ops
+   * concern), so tests reach in directly. */
+  promoteToAdmin(userId: string): void {
+    const row = this.rows.find((r) => r.id === userId);
+    if (!row) throw new Error(`No such user: ${userId}`);
+    row.role = 'ADMIN';
+  }
+
   user = {
     findFirst: async ({ where }: { where: { OR: Array<Record<string, string>> } }) => {
       const conditions = where.OR;
@@ -205,6 +311,7 @@ export class FakePrismaService {
         avatar: null,
         bio: null,
         role: data.role ?? 'USER',
+        emailVerified: false,
         createdAt: now,
         updatedAt: now,
       };
@@ -218,7 +325,42 @@ export class FakePrismaService {
       if (data.displayName !== undefined) row.displayName = data.displayName ?? null;
       if (data.avatar !== undefined) row.avatar = data.avatar ?? null;
       if (data.bio !== undefined) row.bio = data.bio ?? null;
+      if (data.emailVerified !== undefined) row.emailVerified = data.emailVerified;
       row.updatedAt = new Date();
+      return row;
+    },
+  };
+
+  emailVerificationToken = {
+    create: async ({ data }: { data: { userId: string; tokenHash: string; expiresAt: Date } }) => {
+      const row: FakeEmailVerificationTokenRow = {
+        id: randomUUID(),
+        userId: data.userId,
+        tokenHash: data.tokenHash,
+        expiresAt: data.expiresAt,
+        consumedAt: null,
+        createdAt: new Date(),
+      };
+      this.emailVerificationTokenRows.push(row);
+      return row;
+    },
+
+    findUnique: async ({ where }: { where: { tokenHash?: string; id?: string } }) => {
+      if (where.tokenHash) return this.emailVerificationTokenRows.find((r) => r.tokenHash === where.tokenHash) ?? null;
+      if (where.id) return this.emailVerificationTokenRows.find((r) => r.id === where.id) ?? null;
+      return null;
+    },
+
+    update: async ({
+      where,
+      data,
+    }: {
+      where: { id: string };
+      data: { consumedAt: Date };
+    }) => {
+      const row = this.emailVerificationTokenRows.find((r) => r.id === where.id);
+      if (!row) throw new Error('Record to update not found.');
+      if (data.consumedAt !== undefined) row.consumedAt = data.consumedAt;
       return row;
     },
   };
@@ -233,6 +375,34 @@ export class FakePrismaService {
       if (where.slug) return this.channelRows.find((row) => row.slug === where.slug) ?? null;
       if (where.ownerId) return this.channelRows.find((row) => row.ownerId === where.ownerId) ?? null;
       return null;
+    },
+
+    findMany: async ({
+      where = {},
+      orderBy,
+      skip = 0,
+      take = 20,
+    }: {
+      where?: ListWhere;
+      orderBy?: Record<string, 'asc' | 'desc'>;
+      skip?: number;
+      take?: number;
+    }) => {
+      let rows = this.channelRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where));
+      if (orderBy) {
+        const [[field, dir]] = Object.entries(orderBy);
+        rows = [...rows].sort((a, b) => {
+          const av = (a as unknown as Record<string, unknown>)[field];
+          const bv = (b as unknown as Record<string, unknown>)[field];
+          const cmp = av! > bv! ? 1 : av! < bv! ? -1 : 0;
+          return dir === 'asc' ? cmp : -cmp;
+        });
+      }
+      return rows.slice(skip, skip + take);
+    },
+
+    count: async ({ where = {} }: { where?: ListWhere }) => {
+      return this.channelRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where)).length;
     },
 
     create: async ({ data }: { data: CreateChannelInput }) => {
@@ -263,6 +433,8 @@ export class FakePrismaService {
       if (data.avatar !== undefined) row.avatar = data.avatar ?? null;
       if (data.banner !== undefined) row.banner = data.banner ?? null;
       if (data.category !== undefined) row.category = data.category ?? null;
+      if (data.followersCount?.increment !== undefined) row.followersCount += data.followersCount.increment;
+      if (data.followersCount?.decrement !== undefined) row.followersCount -= data.followersCount.decrement;
       row.updatedAt = new Date();
       return row;
     },
@@ -308,6 +480,34 @@ export class FakePrismaService {
       );
     },
 
+    findMany: async ({
+      where = {},
+      orderBy,
+      skip = 0,
+      take = 20,
+    }: {
+      where?: ListWhere;
+      orderBy?: Record<string, 'asc' | 'desc'>;
+      skip?: number;
+      take?: number;
+    }) => {
+      let rows = this.streamRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where));
+      if (orderBy) {
+        const [[field, dir]] = Object.entries(orderBy);
+        rows = [...rows].sort((a, b) => {
+          const av = (a as unknown as Record<string, unknown>)[field];
+          const bv = (b as unknown as Record<string, unknown>)[field];
+          const cmp = av! > bv! ? 1 : av! < bv! ? -1 : 0;
+          return dir === 'asc' ? cmp : -cmp;
+        });
+      }
+      return rows.slice(skip, skip + take);
+    },
+
+    count: async ({ where = {} }: { where?: ListWhere }) => {
+      return this.streamRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where)).length;
+    },
+
     create: async ({ data }: { data: CreateStreamInput }) => {
       const now = new Date();
       const row: FakeStreamRow = {
@@ -342,6 +542,147 @@ export class FakePrismaService {
       if (data.endedAt !== undefined) row.endedAt = data.endedAt ?? null;
       row.updatedAt = new Date();
       return row;
+    },
+  };
+
+  follow = {
+    findUnique: async ({
+      where,
+    }: {
+      where: { followerId_channelId: { followerId: string; channelId: string } };
+    }) => {
+      const { followerId, channelId } = where.followerId_channelId;
+      return this.followRows.find((r) => r.followerId === followerId && r.channelId === channelId) ?? null;
+    },
+
+    findMany: async ({
+      where = {},
+      include,
+      orderBy,
+      skip = 0,
+      take = 20,
+    }: {
+      where?: { followerId?: string; channelId?: string };
+      include?: { channel?: boolean; follower?: boolean };
+      orderBy?: Record<string, 'asc' | 'desc'>;
+      skip?: number;
+      take?: number;
+    }) => {
+      let rows = this.followRows.filter(
+        (row) =>
+          (where.followerId === undefined || row.followerId === where.followerId) &&
+          (where.channelId === undefined || row.channelId === where.channelId),
+      );
+      if (orderBy?.createdAt) {
+        rows = [...rows].sort((a, b) =>
+          orderBy.createdAt === 'asc'
+            ? a.createdAt.getTime() - b.createdAt.getTime()
+            : b.createdAt.getTime() - a.createdAt.getTime(),
+        );
+      }
+      const page = rows.slice(skip, skip + take);
+      return page.map((row) => {
+        const extra: Record<string, unknown> = {};
+        if (include?.channel) extra.channel = this.channelRows.find((c) => c.id === row.channelId) ?? null;
+        if (include?.follower) extra.follower = this.rows.find((u) => u.id === row.followerId) ?? null;
+        return { ...row, ...extra };
+      });
+    },
+
+    count: async ({ where = {} }: { where?: { followerId?: string; channelId?: string } }) => {
+      return this.followRows.filter(
+        (row) =>
+          (where.followerId === undefined || row.followerId === where.followerId) &&
+          (where.channelId === undefined || row.channelId === where.channelId),
+      ).length;
+    },
+
+    create: async ({ data }: { data: { followerId: string; channelId: string } }) => {
+      const row: FakeFollowRow = {
+        id: randomUUID(),
+        followerId: data.followerId,
+        channelId: data.channelId,
+        createdAt: new Date(),
+      };
+      this.followRows.push(row);
+      return row;
+    },
+
+    delete: async ({ where }: { where: { id: string } }) => {
+      const idx = this.followRows.findIndex((r) => r.id === where.id);
+      if (idx === -1) throw new Error('Record to delete does not exist.');
+      const [removed] = this.followRows.splice(idx, 1);
+      return removed;
+    },
+  };
+
+  category = {
+    findUnique: async ({ where }: { where: { id?: string; name?: string; slug?: string } }) => {
+      if (where.id) return this.categoryRows.find((r) => r.id === where.id) ?? null;
+      if (where.name) return this.categoryRows.find((r) => r.name === where.name) ?? null;
+      if (where.slug) return this.categoryRows.find((r) => r.slug === where.slug) ?? null;
+      return null;
+    },
+
+    findMany: async ({
+      where = {},
+      orderBy,
+      skip = 0,
+      take = 20,
+    }: {
+      where?: ListWhere;
+      orderBy?: Record<string, 'asc' | 'desc'>;
+      skip?: number;
+      take?: number;
+    }) => {
+      let rows = this.categoryRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where));
+      if (orderBy) {
+        const [[field, dir]] = Object.entries(orderBy);
+        rows = [...rows].sort((a, b) => {
+          const av = (a as unknown as Record<string, unknown>)[field];
+          const bv = (b as unknown as Record<string, unknown>)[field];
+          const cmp = av! > bv! ? 1 : av! < bv! ? -1 : 0;
+          return dir === 'asc' ? cmp : -cmp;
+        });
+      }
+      return rows.slice(skip, skip + take);
+    },
+
+    count: async ({ where = {} }: { where?: ListWhere }) => {
+      return this.categoryRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where)).length;
+    },
+
+    create: async ({ data }: { data: CreateCategoryInput }) => {
+      const now = new Date();
+      const row: FakeCategoryRow = {
+        id: randomUUID(),
+        name: data.name,
+        slug: data.slug,
+        description: data.description ?? null,
+        thumbnail: data.thumbnail ?? null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.categoryRows.push(row);
+      return row;
+    },
+
+    update: async ({ where, data }: { where: { id: string }; data: UpdateCategoryInput }) => {
+      const row = this.categoryRows.find((r) => r.id === where.id);
+      if (!row) throw new Error('Record to update not found.');
+      if (data.name !== undefined) row.name = data.name;
+      if (data.slug !== undefined) row.slug = data.slug;
+      if (data.description !== undefined) row.description = data.description ?? null;
+      if (data.thumbnail !== undefined) row.thumbnail = data.thumbnail ?? null;
+      row.updatedAt = new Date();
+      return row;
+    },
+
+    delete: async ({ where }: { where: { id: string } }) => {
+      const idx = this.categoryRows.findIndex((r) => r.id === where.id);
+      if (idx === -1) throw new Error('Record to delete does not exist.');
+      const [removed] = this.categoryRows.splice(idx, 1);
+      return removed;
     },
   };
 }

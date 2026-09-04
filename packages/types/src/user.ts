@@ -14,6 +14,7 @@ export interface UserPublic {
   avatar?: string | null;
   bio?: string | null;
   role: Role;
+  emailVerified: boolean;
   createdAt: string;
   updatedAt: string;
 }

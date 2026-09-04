@@ -20,7 +20,9 @@ Authenticated routes require `Authorization: Bearer <accessToken>`.
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/auth/register` | — | Create an account, returns tokens |
+| POST | `/auth/register` | — | Create an account, returns tokens (a verification email is also sent) |
+| POST | `/auth/verify-email` | — | Consume an emailed verification token; returns a fresh session |
+| POST | `/auth/resend-verification` | — | Re-send the verification email (always generic success) |
 | POST | `/auth/login` | — | Log in with username/email + password |
 | POST | `/auth/refresh` | — | Exchange a refresh token for a new pair |
 | POST | `/auth/logout` | Bearer | Revoke a refresh token |
@@ -37,6 +39,22 @@ Authenticated routes require `Authorization: Bearer <accessToken>`.
 ```
 
 Errors: `400` invalid input, `409` username or email already taken.
+
+### POST `/auth/verify-email`
+
+```json
+{ "token": "<raw token from the emailed link>" }
+```
+
+Returns the same session shape as register/login. `400` for an unknown, expired, or already-consumed token.
+
+### POST `/auth/resend-verification`
+
+```json
+{ "email": "cn@example.com" }
+```
+
+Always returns `{ "sent": true }` — unknown emails and already-verified accounts are deliberately silent so the endpoint can't enumerate registered addresses.
 
 ### POST `/auth/login`
 
@@ -69,12 +87,14 @@ Returns the caller's own `UserPublic` (never includes `passwordHash`).
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
 | GET | `/users/me/channel` | Bearer | The caller's own channel |
+| GET | `/users/me/following` | Bearer | Channels the caller follows *(Phase 7)* |
 | GET | `/users/:username` | — | Public profile by username |
 | PATCH | `/users/me` | Bearer | Update the caller's own profile |
 
-> Route order matters: `me/channel` is registered before `:username` so it
-> isn't swallowed by the parameterized route (in practice Nest/Express match
-> by segment count, so this is defensive rather than strictly required).
+> Route order matters: `me/channel` and `me/following` are registered before
+> `:username` so neither is swallowed by the parameterized route (in
+> practice Nest/Express match by segment count, so this is defensive rather
+> than strictly required).
 
 ### GET `/users/:username`
 
@@ -88,15 +108,23 @@ Body (all optional): `{ "displayName", "avatar", "bio" }`. Returns the updated `
 
 Returns the caller's own `ChannelPublic`. `404 "You do not have a channel yet"` if they haven't created one (see below).
 
+### GET `/users/me/following` *(Phase 7)*
+
+Requires `Authorization`. Paginated (`?page=&limit=`, see Pagination below) list of `ChannelPublic` the caller follows, newest-followed first. `200` with `{ items, total, page, limit }`; an empty `items` array if following nobody.
+
 ---
 
-## Channels — `/channels` *(Phase 3)*
+## Channels — `/channels` *(Phase 3, extended Phase 7)*
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
+| GET | `/channels` | — | Browse/search channels *(Phase 7)* |
 | POST | `/channels` | Bearer | Create the caller's channel (one per user) |
 | GET | `/channels/:slug` | — | Public channel lookup by slug |
 | PATCH | `/channels/:id` | Bearer, owner-only | Update a channel |
+| POST | `/channels/:id/follow` | Bearer | Follow a channel *(Phase 7)* |
+| DELETE | `/channels/:id/follow` | Bearer | Unfollow a channel *(Phase 7)* |
+| GET | `/channels/:id/followers` | — | Paginated list of a channel's followers *(Phase 7)* |
 
 ### Channel shape (`ChannelPublic`)
 
@@ -109,12 +137,25 @@ Returns the caller's own `ChannelPublic`. `404 "You do not have a channel yet"` 
   avatar: string | null;
   banner: string | null;
   category: string | null;
-  followersCount: number;   // maintained by the follows module (future phase); always 0 for now
+  followersCount: number;   // maintained transactionally by the follows module (Phase 7)
   ownerId: string;
   createdAt: string;        // ISO 8601
   updatedAt: string;
 }
 ```
+
+### GET `/channels` *(Phase 7)*
+
+Public. Query params (all optional, see Pagination below for `page`/`limit`):
+
+| Param | Rules | Effect |
+| --- | --- | --- |
+| `search` | string, ≤50 chars | Case-insensitive substring match against `name` |
+| `category` | string, ≤50 chars | Exact match against `category` |
+| `sortBy` | `followersCount` \| `createdAt` (default `followersCount`) | |
+| `order` | `asc` \| `desc` (default `desc`) | |
+
+`200` with `{ items: ChannelPublic[], total, page, limit }`. Not cached — see Performance below.
 
 ### POST `/channels`
 
@@ -162,12 +203,120 @@ Responses:
 - `404 "Channel not found"` — no channel with that id.
 - `409 "Slug already taken"` — renaming to a slug already in use by another channel.
 
+### POST `/channels/:id/follow` *(Phase 7)*
+
+Requires `Authorization`. No body — the follower is always the authenticated caller, never a request field. `201` with `{ following: true }`.
+
+Responses:
+- `201` — followed.
+- `401` — no/invalid access token.
+- `403 "You cannot follow your own channel"` — caller owns the target channel.
+- `404 "Channel not found"`.
+- `409 "Already following this channel"` — duplicate follow. Also enforced at the schema level (`@@unique([followerId, channelId])` on `Follow`) — this 409 is a friendlier pre-check in front of that constraint, not the only thing preventing a duplicate.
+
+### DELETE `/channels/:id/follow` *(Phase 7)*
+
+Requires `Authorization`. `200` with `{ following: false }`.
+
+Responses:
+- `200` — unfollowed.
+- `401` — no/invalid access token.
+- `404 "You are not following this channel"` — no existing follow to remove.
+
+### GET `/channels/:id/followers` *(Phase 7)*
+
+Public, no auth required. Paginated (see below). `200` with `{ items: FollowerEntry[], total, page, limit }`, where each entry is `UserPublic & { followedAt: string }`, newest follower first. `404 "Channel not found"` for an unknown channel id.
+
 ---
 
-## Streams — `/streams` *(Phase 5)*
+## Categories — `/categories` *(Phase 7)*
+
+An admin-managed catalog of browse/stream categories (e.g. "Gaming", "Just Chatting"). Deliberately **not** a hard foreign key from `Channel.category` / `Stream.category` — both remain freeform strings carried over from earlier phases. See `docs/domain-model.md` §5 for why.
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
+| GET | `/categories` | — | Browse/search categories |
+| POST | `/categories` | Bearer, `ADMIN` only | Create a category |
+| PATCH | `/categories/:id` | Bearer, `ADMIN` only | Update a category |
+| DELETE | `/categories/:id` | Bearer, `ADMIN` only | Delete a category |
+
+### Category shape (`CategoryPublic`)
+
+```ts
+{
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  thumbnail: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+### GET `/categories`
+
+Public. Query params: `search` (string, ≤50 chars, case-insensitive substring against `name`/`slug`) plus pagination (`page`/`limit`, see below). `200` with `{ items, total, page, limit }`, sorted alphabetically by `name`.
+
+**Cached** — see Performance below. A write (create/update/delete) invalidates every cached page/search combination immediately, so a stale read is bounded by, at most, the cache TTL (60s) even if invalidation itself somehow failed.
+
+### POST `/categories`
+
+Requires `Authorization` **and** the `ADMIN` role. Body:
+
+```json
+{ "name": "Gaming", "slug": "gaming", "description": "Video games", "thumbnail": "https://..." }
+```
+
+| Field | Required | Rules |
+| --- | --- | --- |
+| `name` | yes | string, 2–50 chars, unique |
+| `slug` | yes | string, 2–50 chars, `^[a-z0-9]+(-[a-z0-9]+)*$`, unique |
+| `description` / `thumbnail` | no | string, ≤500 chars |
+
+Responses:
+- `201` — created; returns `CategoryPublic`.
+- `400` — validation failure.
+- `401` — no/invalid access token.
+- `403` — authenticated but not `ADMIN`.
+- `409` — `name` or `slug` already in use.
+
+### PATCH `/categories/:id`
+
+Requires `Authorization` **and** `ADMIN`. Body: any subset of `{ name, slug, description, thumbnail }`. Same `400`/`401`/`403`/`409` cases as create, plus `404 "Category not found"`.
+
+### DELETE `/categories/:id`
+
+Requires `Authorization` **and** `ADMIN`. `200` with `{ deleted: true }`, or `404 "Category not found"`.
+
+---
+
+## Pagination *(Phase 7)*
+
+Every list endpoint (`/categories`, `/channels`, `/streams`, `/channels/:id/followers`, `/users/me/following`) shares the same query params and response envelope:
+
+| Param | Default | Rules |
+| --- | --- | --- |
+| `page` | `1` | integer, ≥1 |
+| `limit` | `20` | integer, 1–50 |
+
+```ts
+{
+  items: T[];
+  total: number;  // total matching rows, not just this page — for computing page count
+  page: number;
+  limit: number;
+}
+```
+
+---
+
+## Streams — `/streams` *(Phase 5, extended Phase 7)*
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/streams` | — | Browse/search streams *(Phase 7)* |
+| GET | `/streams/live` | — | Shorthand for `/streams?status=LIVE` *(Phase 7)* |
 | POST | `/streams` | Bearer, owner-only | Create a stream session for the caller's own channel |
 | GET | `/streams/:id` | — | Public stream metadata |
 | PATCH | `/streams/:id` | Bearer, owner-only | Update stream metadata |
@@ -177,9 +326,31 @@ Responses:
 | POST | `/streams/webhooks/mediamtx/publish` | Shared secret | MediaMTX → API: a publish started |
 | POST | `/streams/webhooks/mediamtx/unpublish` | Shared secret | MediaMTX → API: a publish stopped |
 
+> Route order: `GET /streams/live` is registered before `GET /streams/:id` —
+> both are one path segment, and being a static path, `live` must come
+> first or it would be captured as an `:id` value instead.
+
 "Owner-only" here means the caller must be authenticated **and** be the owner of the
 channel the stream belongs to (looked up via `Stream.channelId → Channel.ownerId`) — the
 same ownership model `PATCH /channels/:id` uses. There is no moderator/admin override yet.
+
+### GET `/streams` *(Phase 7)*
+
+Public. Query params (all optional, see Pagination above for `page`/`limit`):
+
+| Param | Rules | Effect |
+| --- | --- | --- |
+| `search` | string, ≤140 chars | Case-insensitive substring match against `title` |
+| `category` | string, ≤50 chars | Exact match against `category` |
+| `status` | `OFFLINE` \| `LIVE` \| `ENDED` | Exact match against `status` |
+| `sortBy` | `viewerCount` \| `startedAt` \| `createdAt` (default `viewerCount`) | |
+| `order` | `asc` \| `desc` (default `desc`) | |
+
+`200` with `{ items: StreamPublic[], total, page, limit }`. **Not cached** — see Performance below.
+
+### GET `/streams/live` *(Phase 7)*
+
+Identical to `GET /streams` with `status` forced to `LIVE` (any `status` query param is ignored); all other params (`search`, `category`, `sortBy`, `order`, pagination) still apply.
 
 ### Stream shape (`StreamPublic`)
 
@@ -341,3 +512,12 @@ The `error.code` field is the HTTP status name (e.g. `BAD_REQUEST`, `CONFLICT`, 
 ## Rate limiting
 
 All routes are subject to a global limit of 20 requests / 60 seconds per IP (`ThrottlerModule`). Exceeding it returns `429`.
+
+## Performance *(Phase 7)*
+
+Redis caching is applied in exactly one place: **`GET /categories`**, with a 60-second TTL, explicitly invalidated on every `POST`/`PATCH`/`DELETE /categories`. This is deliberately the *only* cached read in the API. Everything else that could plausibly be cached carries state that changes as a side effect of an unrelated write and would go stale in a way that's actively misleading:
+
+- `GET /streams`, `GET /streams/live`, `GET /streams/:id`, `GET /streams/:id/status` — `status`/`viewerCount`/`startedAt` change on every MediaMTX publish/unpublish webhook. A cached page could show a stream as `LIVE` after it ended, or omit one that just went live.
+- `GET /channels`, `GET /channels/:slug`, `GET /channels/:id/followers` — `followersCount` changes on every follow/unfollow, and followers lists change just as often.
+
+Categories are the opposite profile: a small, admin-curated catalog that changes rarely (an occasional create/rename/delete, not per-request), so a short-TTL cache with write-time invalidation has a very low staleness window and a real payoff (`GET /categories` is likely the single most frequently hit browse endpoint, since every stream/channel browse UI needs the category list for its filter chips).

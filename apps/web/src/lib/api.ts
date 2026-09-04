@@ -51,6 +51,15 @@ export const authApi = {
   login: (input: { identifier: string; password: string }) =>
     request<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify(input) }),
 
+  verifyEmail: (token: string) =>
+    request<AuthResponse>('/auth/verify-email', { method: 'POST', body: JSON.stringify({ token }) }),
+
+  resendVerification: (email: string) =>
+    request<{ sent: boolean }>('/auth/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+
   refresh: (refreshToken: string) =>
     request<AuthResponse>('/auth/refresh', { method: 'POST', body: JSON.stringify({ refreshToken }) }),
 

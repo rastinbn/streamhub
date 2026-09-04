@@ -6,6 +6,7 @@ import configuration from './config/configuration';
 import { HealthModule } from './health/health.module';
 import { DatabaseModule } from './database/database.module';
 import { RedisModule } from './redis/redis.module';
+import { MailModule } from './mail/mail.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { ChannelsModule } from './modules/channels/channels.module';
@@ -15,6 +16,7 @@ import { FollowsModule } from './modules/follows/follows.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { CategoriesModule } from './modules/categories/categories.module';
 
 @Module({
   imports: [
@@ -27,12 +29,14 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     }),
     DatabaseModule,
     RedisModule,
+    MailModule,
     HealthModule,
     // Domain modules (placeholders for now, implemented phase by phase):
     AuthModule,
     UsersModule,
     ChannelsModule,
     StreamsModule,
+    CategoriesModule,
     ChatModule,
     FollowsModule,
     NotificationsModule,

@@ -4,10 +4,44 @@ import { PrismaService } from '../../database/prisma.service';
 import { toPublicChannel } from '../../common/mappers';
 import { CreateChannelDto } from './dto/create-channel.dto';
 import { UpdateChannelDto } from './dto/update-channel.dto';
+import { ListChannelsQueryDto } from './dto/list-channels-query.dto';
 
 @Injectable()
 export class ChannelsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Browse/search channels — not cached (`followersCount` changes on every
+   * follow/unfollow, so a cached page would go stale exactly as often as
+   * the thing people actually care about here; see docs/api-contract.md's
+   * Performance note).
+   */
+  async list(query: ListChannelsQueryDto) {
+    const where: Record<string, unknown> = {};
+    if (query.search) {
+      where.name = { contains: query.search, mode: 'insensitive' as const };
+    }
+    if (query.category) {
+      where.category = query.category;
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.channel.findMany({
+        where,
+        orderBy: { [query.sortBy ?? 'followersCount']: query.order ?? 'desc' },
+        skip: query.skip,
+        take: query.take,
+      }),
+      this.prisma.channel.count({ where }),
+    ]);
+
+    return {
+      items: items.map((c: unknown) => toPublicChannel(c as { id: unknown })),
+      total,
+      page: query.page ?? 1,
+      limit: query.limit ?? 20,
+    };
+  }
 
   async create(ownerId: string, dto: CreateChannelDto): Promise<ChannelPublic> {
     // A user owns at most one channel (Channel.ownerId is unique).

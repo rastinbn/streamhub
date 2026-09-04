@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { StreamsService } from './streams.service';
 import { CreateStreamDto } from './dto/create-stream.dto';
 import { UpdateStreamDto } from './dto/update-stream.dto';
 import { MediaMtxWebhookDto } from './dto/mediamtx-webhook.dto';
+import { ListStreamsQueryDto } from './dto/list-streams-query.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
@@ -12,6 +13,23 @@ import type { RequestWithUser } from '../../common/guards/jwt-auth.guard';
 @Controller('streams')
 export class StreamsController {
   constructor(private readonly streams: StreamsService) {}
+
+  // --- Browse/search ----------------------------------------------------
+  //
+  // Registered ahead of the `:id` routes below: `GET /streams/live` has the
+  // same one-segment shape as `GET /streams/:id` and, being a static path,
+  // must be declared first or Nest/Express would treat "live" as an `:id`
+  // value and this route would never be reached.
+
+  @Get('live')
+  async listLive(@Query() query: ListStreamsQueryDto) {
+    return { success: true, data: await this.streams.listLive(query) };
+  }
+
+  @Get()
+  async list(@Query() query: ListStreamsQueryDto) {
+    return { success: true, data: await this.streams.list(query) };
+  }
 
   // --- MediaMTX lifecycle callbacks ------------------------------------
   //
