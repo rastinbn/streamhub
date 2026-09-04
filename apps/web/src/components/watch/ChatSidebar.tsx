@@ -28,11 +28,20 @@ export default function ChatSidebar({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-sm bg-background/30">
-        {chat.map((msg) => (
-          <ChatMessage key={msg.id} message={msg} />
-        ))}
-      </div>
+      {chat.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-sm overflow-y-auto bg-background/30 p-3">
+          <MessageSquare className="h-6 w-6 text-outline" />
+          <p className="text-center font-body-sm text-body-sm text-on-surface-variant">
+            Chat isn&#39;t connected yet.
+          </p>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-sm bg-background/30">
+          {chat.map((msg) => (
+            <ChatMessage key={msg.id} message={msg} />
+          ))}
+        </div>
+      )}
 
       {/* Input */}
       <div className="p-3 border-t border-outline-variant/30 flex flex-col gap-2">

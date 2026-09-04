@@ -30,7 +30,7 @@ export default function FollowedChannels() {
         <p className="px-1 text-xs text-on-surface-variant">Coming soon.</p>
       ) : channels.length === 0 ? (
         <p className="px-1 text-xs text-on-surface-variant">
-          You're not following anyone yet.
+          You&#39;re not following anyone yet.
         </p>
       ) : (
         <ul className="flex flex-col gap-1">

@@ -3,7 +3,15 @@ import Image from 'next/image';
 import { Star, Heart, MoreVertical } from 'lucide-react';
 import type { WatchStream } from './types';
 
-export default function StreamInfo({ stream }: { stream: WatchStream }) {
+export default function StreamInfo({
+  stream,
+  isFollowing,
+  onFollow,
+}: {
+  stream: WatchStream;
+  isFollowing?: boolean;
+  onFollow?: () => void;
+}) {
   const [descExpanded, setDescExpanded] = useState(false);
 
   return (
@@ -46,10 +54,12 @@ export default function StreamInfo({ stream }: { stream: WatchStream }) {
         <div className="flex items-center gap-sm">
           <button
             type="button"
+            onClick={onFollow}
+            aria-pressed={isFollowing}
             className="bg-primary-container text-on-primary-container hover:bg-primary-container/90 px-6 py-2 rounded-full font-label-md text-label-md transition-colors flex items-center gap-2 font-bold shadow-md"
           >
-            <Heart className="w-[18px] h-[18px]" />
-            Follow
+            <Heart className="w-[18px] h-[18px]" fill={isFollowing ? 'currentColor' : 'none'} />
+            {isFollowing ? 'Following' : 'Follow'}
           </button>
           <button
             type="button"

@@ -81,8 +81,8 @@ module.exports = {
         'headline-lg': ['Inter'],
         'display-lg': ['Inter'],
         'body-sm': ['Inter'],
-        'label-md': ['JetBrains Mono'],
-        'label-sm': ['JetBrains Mono'],
+        'label-md': ['Inter'],
+        'label-sm': ['Inter'],
       },
       fontSize: {
         'body-lg': ['18px', { lineHeight: '28px', fontWeight: '400' }],
