@@ -19,8 +19,8 @@ const sizeClasses: Record<AvatarSize, string> = {
 };
 
 const statusColor: Record<AvatarStatus, string> = {
-  live: 'bg-error',
-  online: 'bg-[#4ade80]',
+  live: 'bg-live',
+  online: 'bg-online',
   offline: 'bg-outline-variant',
 };
 

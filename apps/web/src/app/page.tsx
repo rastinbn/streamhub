@@ -59,7 +59,7 @@ export default function Home() {
         {/* Live Now */}
         <section className="flex flex-col gap-md">
           <h2 className="font-headline-md text-headline-md text-on-surface flex items-center gap-sm">
-            <span className="h-3 w-3 rounded-full bg-error animate-pulse" />
+            <span className="h-3 w-3 rounded-full bg-live animate-pulse" />
             Live Now
           </h2>
 

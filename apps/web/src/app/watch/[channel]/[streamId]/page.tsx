@@ -6,6 +6,8 @@ import StreamInfo from '@/components/watch/StreamInfo';
 import ChatSidebar from '@/components/watch/ChatSidebar';
 import type { WatchStream } from '@/components/watch/types';
 import { useWatchStream } from '@/hooks/useWatchStream';
+import { useWatchChat } from '@/hooks/useWatchChat';
+import { useViewerHeartbeat } from '@/hooks/useViewerHeartbeat';
 import { useAuth } from '@/lib/auth-context';
 import { formatCompact, formatDuration } from '@/lib/format';
 import {
@@ -22,6 +24,8 @@ export default function WatchPage() {
   const { accessToken } = useAuth();
   const { stream, channel, status, isFollowing, isLoading, isError, error, isNotFound, setFollowed } =
     useWatchStream(params.streamId, params.channel);
+  const chat = useWatchChat(params.streamId);
+  useViewerHeartbeat(params.streamId, stream?.status === 'LIVE' && !isLoading);
 
   async function toggleFollow() {
     if (!stream || !accessToken) {
@@ -84,7 +88,15 @@ export default function WatchPage() {
       </div>
 
       {/* Chat sidebar */}
-      <ChatSidebar chat={[]} viewerCount={watchStream.viewerCount} />
+      <ChatSidebar
+        chat={chat.messages}
+        viewerCount={watchStream.viewerCount}
+        connectionStatus={chat.status}
+        requiresAuth={chat.requiresAuth}
+        errorMessage={chat.errorMessage}
+        onSend={chat.send}
+        onClearError={chat.clearError}
+      />
     </div>
   );
 }

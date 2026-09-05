@@ -9,6 +9,9 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        live: '#FF4B4B',
+        'on-live': '#ffffff',
+        online: '#4ade80',
         'on-secondary-fixed': '#002022',
         'on-tertiary-container': '#fffcff',
         'on-error': '#690005',
@@ -58,9 +61,11 @@ module.exports = {
         'on-primary-fixed': '#270057',
       },
       borderRadius: {
-        DEFAULT: '0.25rem',
-        lg: '0.5rem',
-        xl: '0.75rem',
+        sm: '0.25rem',
+        DEFAULT: '0.5rem',
+        md: '0.75rem',
+        lg: '1rem',
+        xl: '1.5rem',
         full: '9999px',
       },
       spacing: {

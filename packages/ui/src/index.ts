@@ -6,3 +6,5 @@ export * from './avatar';
 export * from './badge';
 export * from './tabs';
 export * from './modal';
+export * from './toast';
+export * from './dropdown';

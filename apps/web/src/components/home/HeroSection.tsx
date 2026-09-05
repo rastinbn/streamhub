@@ -33,7 +33,7 @@ export default function HeroSection({ hero }: { hero: HeroData }) {
 
         {/* Top-left badges */}
         <div className="absolute top-4 left-4 flex gap-sm items-center z-10">
-          <div className="bg-error text-on-error font-label-sm text-label-sm px-2 py-1 rounded font-bold tracking-wider">
+          <div className="bg-live text-on-live font-label-sm text-label-sm px-2 py-1 rounded font-bold tracking-wider">
             LIVE
           </div>
           <div className="bg-black/60 backdrop-blur-sm border border-outline-variant/30 text-white font-label-sm text-label-sm px-2 py-1 rounded flex items-center gap-1">
@@ -46,7 +46,7 @@ export default function HeroSection({ hero }: { hero: HeroData }) {
         <div className="absolute bottom-0 left-0 w-full p-md md:p-lg flex flex-col md:flex-row justify-between items-start md:items-end gap-md z-10">
           <div className="flex items-end gap-md">
             {/* Avatar */}
-            <div className="w-16 h-16 md:w-20 md:h-20 rounded-full border-2 border-error bg-surface-container-high overflow-hidden shadow-lg shrink-0 relative">
+            <div className="w-16 h-16 md:w-20 md:h-20 rounded-full border-2 border-live bg-surface-container-high overflow-hidden shadow-lg shrink-0 relative">
               <Image
                 className="w-full h-full object-cover"
                 src={hero.avatarUrl}
@@ -54,7 +54,7 @@ export default function HeroSection({ hero }: { hero: HeroData }) {
                 width={80}
                 height={80}
               />
-              <div className="absolute inset-0 rounded-full shadow-[0_0_15px_rgba(255,180,171,0.5)]" />
+              <div className="absolute inset-0 rounded-full shadow-[0_0_15px_rgba(255,75,75,0.5)]" />
             </div>
 
             {/* Text */}

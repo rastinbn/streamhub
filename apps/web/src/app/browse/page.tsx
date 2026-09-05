@@ -132,8 +132,8 @@ export default function Browse() {
           </h1>
           <p className="flex items-center gap-xs text-body-md font-body-md text-on-surface-variant">
             <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-error opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-error" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-live opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-live" />
             </span>
             {liveTotal} streams live now
           </p>
@@ -203,7 +203,7 @@ export default function Browse() {
                     : 'border border-outline-variant bg-transparent text-on-surface-variant hover:bg-surface-variant hover:text-on-surface'
                 } ${!isFilterable ? 'opacity-60' : ''}`}
               >
-                {filter.liveDot && <span className="h-2 w-2 rounded-full bg-error" />}
+                {filter.liveDot && <span className="h-2 w-2 rounded-full bg-live" />}
                 {Icon && <Icon className="h-4 w-4" />}
                 {filter.label}
               </button>

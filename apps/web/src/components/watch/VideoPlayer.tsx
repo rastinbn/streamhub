@@ -15,8 +15,8 @@ export default function VideoPlayer({ stream }: { stream: WatchStream }) {
 
       {/* Top overlays */}
       <div className="absolute top-md left-md flex items-center gap-sm z-10">
-        <div className="bg-error text-on-error font-label-sm text-label-sm px-2 py-0.5 rounded uppercase tracking-widest font-bold shadow-md flex items-center gap-1">
-          <span className="w-1.5 h-1.5 bg-on-error rounded-full animate-pulse" />
+        <div className="bg-live text-on-live font-label-sm text-label-sm px-2 py-0.5 rounded uppercase tracking-widest font-bold shadow-md flex items-center gap-1">
+          <span className="w-1.5 h-1.5 bg-on-live rounded-full animate-pulse" />
           LIVE
         </div>
         <div className="bg-black/60 backdrop-blur-md text-white font-label-sm text-label-sm px-2.5 py-1 rounded shadow-md flex items-center gap-1.5">

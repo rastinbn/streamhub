@@ -9,3 +9,4 @@ export { streamsApi } from './streams';
 export type { StreamListQuery } from './streams';
 export { categoriesApi } from './categories';
 export type { CategoryListQuery } from './categories';
+export { analyticsApi } from './analytics';

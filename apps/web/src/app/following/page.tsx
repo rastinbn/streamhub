@@ -91,7 +91,7 @@ export default function Following() {
           <section className="mb-xl">
             <div className="flex items-center gap-3 mb-md">
               <h2 className="font-headline-md text-headline-md text-on-surface">Live Now</h2>
-              <span className="h-2.5 w-2.5 rounded-full bg-error animate-pulse shadow-[0_0_8px_rgba(255,180,171,0.5)]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-live animate-pulse shadow-[0_0_8px_rgba(255,75,75,0.5)]" />
             </div>
 
             {liveChannels.length === 0 ? (

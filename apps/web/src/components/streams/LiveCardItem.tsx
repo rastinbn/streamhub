@@ -25,7 +25,7 @@ export default function LiveCardItem({ stream }: { stream: LiveCard }) {
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
         />
-        <div className="absolute top-sm left-sm bg-error text-on-error font-label-sm text-label-sm px-2 py-0.5 rounded uppercase tracking-wider z-10 shadow-sm font-bold">
+        <div className="absolute top-sm left-sm bg-live text-on-live font-label-sm text-label-sm px-2 py-0.5 rounded uppercase tracking-wider z-10 shadow-sm font-bold">
           Live
         </div>
         <div className="absolute bottom-sm left-sm bg-black/60 backdrop-blur-sm text-white font-label-sm text-label-sm px-2 py-0.5 rounded z-10 flex items-center gap-1 shadow-sm">
@@ -44,7 +44,7 @@ export default function LiveCardItem({ stream }: { stream: LiveCard }) {
             width={40}
             height={40}
           />
-          <div className="absolute inset-0 bg-error rounded-full blur-[2px] -z-0" />
+          <div className="absolute inset-0 bg-live rounded-full blur-[2px] -z-0" />
         </div>
         <div className="flex flex-col min-w-0 flex-1">
           <h3 className="text-body-md font-body-md font-semibold text-on-surface truncate group-hover:text-primary transition-colors">

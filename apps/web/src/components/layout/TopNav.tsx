@@ -166,6 +166,13 @@ export default function TopNav({ onMenuClick, menuOpen }: TopNavProps) {
                   <p className="truncate text-xs text-on-surface-variant">{user.email}</p>
                 </div>
                 <Link
+                  href={`/profile/${encodeURIComponent(user.username)}`}
+                  onClick={() => setProfileMenuOpen(false)}
+                  className="block px-4 py-2.5 text-sm text-on-surface-variant transition-colors hover:bg-surface-variant/50 hover:text-on-surface"
+                >
+                  View profile
+                </Link>
+                <Link
                   href="/dashboard/settings"
                   onClick={() => setProfileMenuOpen(false)}
                   className="block px-4 py-2.5 text-sm text-on-surface-variant transition-colors hover:bg-surface-variant/50 hover:text-on-surface"

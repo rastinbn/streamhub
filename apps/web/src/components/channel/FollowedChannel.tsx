@@ -22,7 +22,7 @@ export default function FollowedChannel({ id, name, avatarUrl, avatarAlt, status
           />
           <div
             className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-surface-container-low ${
-              statusColor === 'live' ? 'bg-error' : 'bg-[#4ade80]'
+              statusColor === 'live' ? 'bg-live' : 'bg-online'
             }`}
           />
         </div>

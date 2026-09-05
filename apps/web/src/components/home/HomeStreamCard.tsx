@@ -33,7 +33,7 @@ export default function HomeStreamCard({ stream }: { stream: HomeStreamCardData 
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
         />
-        <div className="absolute top-2 left-2 bg-error text-on-error font-label-sm text-label-sm px-1.5 py-0.5 rounded font-bold tracking-wider z-10 shadow-sm">
+        <div className="absolute top-2 left-2 bg-live text-on-live font-label-sm text-label-sm px-1.5 py-0.5 rounded font-bold tracking-wider z-10 shadow-sm">
           Live
         </div>
         <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-white font-label-sm text-label-sm px-1.5 py-0.5 rounded z-10 flex items-center gap-1 shadow-sm">
@@ -52,7 +52,7 @@ export default function HomeStreamCard({ stream }: { stream: HomeStreamCardData 
             width={40}
             height={40}
           />
-          <div className="absolute inset-0 bg-error rounded-full blur-[2px] -z-0" />
+          <div className="absolute inset-0 bg-live rounded-full blur-[2px] -z-0" />
         </div>
         <div className="flex flex-col min-w-0">
           <h3 className="text-body-md font-body-md font-semibold text-on-surface truncate group-hover:text-primary transition-colors">
