@@ -215,6 +215,9 @@ importers:
       '@types/node':
         specifier: ^20.14.15
         version: 20.19.43
+      bcryptjs:
+        specifier: ^2.4.3
+        version: 2.4.3
       prisma:
         specifier: ^5.19.0
         version: 5.22.0
