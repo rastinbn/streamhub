@@ -8,7 +8,7 @@
 .font-headline-lg,
 .font-headline-lg-mobile,
 .font-headline-md {
-    font-family: var(--font-display), var(--font-sans), sans-serif;
+    font-family: var(--font-sans), sans-serif;
 }
 
 /* Body/label roles → the body face */
@@ -29,7 +29,7 @@ body {
 }
 
 .font-display {
-    font-family: var(--font-display), var(--font-sans), sans-serif;
+    font-family: var(--font-sans), sans-serif;
 }
 
 /* Mobile search bar reveal (used in TopNav) */

@@ -1,20 +1,18 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { ApiError, usersApi } from '@/lib/api';
-import { useAuth } from '@/lib/auth-context';
+import { useUpdateProfile } from '@/hooks/useUpdateProfile';
 import { useRequireAuth } from '@/lib/use-require-auth';
 
 export default function SettingsPage() {
   const { user, loading } = useRequireAuth();
-  const { accessToken, setUser } = useAuth();
+  const { submitting, update } = useUpdateProfile();
 
   const [displayName, setDisplayName] = useState('');
   const [avatar, setAvatar] = useState('');
   const [bio, setBio] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
 
   // Seed the form once the user is known.
   useEffect(() => {
@@ -26,23 +24,18 @@ export default function SettingsPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!accessToken) return;
 
     setError(null);
     setSuccess(false);
-    setSubmitting(true);
-    try {
-      const updated = await usersApi.updateProfile(accessToken, {
-        displayName: displayName || undefined,
-        avatar: avatar || undefined,
-        bio: bio || undefined,
-      });
-      setUser(updated);
+    const result = await update({
+      displayName: displayName || undefined,
+      avatar: avatar || undefined,
+      bio: bio || undefined,
+    });
+    if (result.ok) {
       setSuccess(true);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
-    } finally {
-      setSubmitting(false);
+    } else if (result.error) {
+      setError(result.error);
     }
   }
 
