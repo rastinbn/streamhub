@@ -28,6 +28,7 @@ function patternToRegExp(pattern: string): RegExp {
 class FakeRedisClient extends EventEmitter {
   private store = new Map<string, string>();
   private lists = new Map<string, string[]>();
+  private hashes = new Map<string, Map<string, string>>();
   private expiries = new Map<string, NodeJS.Timeout>();
   private subscriptions: string[] = [];
 
@@ -62,7 +63,9 @@ class FakeRedisClient extends EventEmitter {
     this.expiries.set(key, timer);
   }
 
-  async set(key: string, value: string, ...opts: unknown[]): Promise<'OK'> {
+  async set(key: string, value: string, ...opts: unknown[]): Promise<'OK' | null> {
+    const hasNx = opts.includes('NX');
+    if (hasNx && this.store.has(key)) return null;
     this.store.set(key, value);
     const exIndex = opts.findIndex((o) => o === 'EX');
     if (exIndex !== -1) {
@@ -93,6 +96,42 @@ class FakeRedisClient extends EventEmitter {
     const next = current + 1;
     this.store.set(key, String(next));
     return next;
+  }
+
+  async incrby(key: string, amount: number): Promise<number> {
+    const current = Number(this.store.get(key) ?? '0');
+    const next = current + amount;
+    this.store.set(key, String(next));
+    return next;
+  }
+
+  async hset(key: string, field: string, value: string): Promise<number> {
+    const hash = this.hashes.get(key) ?? new Map<string, string>();
+    const created = !hash.has(field);
+    hash.set(field, value);
+    this.hashes.set(key, hash);
+    return created ? 1 : 0;
+  }
+
+  async hgetall(key: string): Promise<Record<string, string>> {
+    const hash = this.hashes.get(key);
+    if (!hash) return {};
+    return Object.fromEntries(hash.entries());
+  }
+
+  async hexists(key: string, field: string): Promise<number> {
+    return this.hashes.get(key)?.has(field) ? 1 : 0;
+  }
+
+  async hdel(key: string, ...fields: string[]): Promise<number> {
+    const hash = this.hashes.get(key);
+    if (!hash) return 0;
+    let removed = 0;
+    for (const field of fields) {
+      if (hash.delete(field)) removed++;
+    }
+    if (hash.size === 0) this.hashes.delete(key);
+    return removed;
   }
 
   async expire(key: string, seconds: number): Promise<number> {
@@ -169,6 +208,7 @@ class FakeRedisClient extends EventEmitter {
   clear(): void {
     this.store.clear();
     this.lists.clear();
+    this.hashes.clear();
     for (const timer of this.expiries.values()) clearTimeout(timer);
     this.expiries.clear();
     this.subscriptions = [];

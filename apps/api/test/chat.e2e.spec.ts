@@ -1,6 +1,7 @@
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
+import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { Test } from '@nestjs/testing';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerStorage } from '@nestjs/throttler';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { sign } from 'jsonwebtoken';
 import { io, type Socket } from 'socket.io-client';
@@ -37,11 +38,15 @@ async function buildApp(): Promise<{ app: INestApplication; prisma: FakePrismaSe
     .useClass(FakePrismaService)
     .overrideProvider(RedisService)
     .useClass(FakeRedisService)
-    .overrideGuard(ThrottlerGuard)
-    .useValue({ canActivate: () => true })
+    // The real ThrottlerGuard (bound via APP_GUARD) cannot be swapped out
+    // from the test container; neutralizing its storage is what actually
+    // disables the 20 req/min global limit in e2e.
+    .overrideProvider(ThrottlerStorage)
+    .useValue({ increment: async () => ({ totalHits: 1, timeToExpire: 0, isBlocked: false, timeToBlockExpire: 0 }) })
     .compile();
 
   const app = moduleRef.createNestApplication();
+  app.useGlobalFilters(new AllExceptionsFilter());
   app.useWebSocketAdapter(new IoAdapter(app));
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
   app.setGlobalPrefix('api');

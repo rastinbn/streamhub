@@ -1,7 +1,8 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { StreamPublic, StreamStatusView, StreamWithKey } from '@streamhub/types';
 import { PrismaService } from '../../database/prisma.service';
 import { toPublicStream } from '../../common/mappers';
+import { AnalyticsService } from '../analytics/analytics.service';
 import { generateStreamKey, hashStreamKey } from './stream-key.util';
 import { CreateStreamDto } from './dto/create-stream.dto';
 import { UpdateStreamDto } from './dto/update-stream.dto';
@@ -9,7 +10,12 @@ import { ListStreamsQueryDto } from './dto/list-streams-query.dto';
 
 @Injectable()
 export class StreamsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(StreamsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly analytics: AnalyticsService,
+  ) {}
 
   /**
    * Browse/search streams — deliberately NOT cached. `status`/`viewerCount`
@@ -172,6 +178,19 @@ export class StreamsService {
       },
     });
 
+    // Revoking a key on a live stream ends the broadcast session, so the
+    // analytics pipeline must finalize it exactly like an unpublish would.
+    if (wasLive && updated.startedAt) {
+      await this.fireAnalytics(() =>
+        this.analytics.registerStreamEnd({
+          id: updated.id,
+          channelId: updated.channelId,
+          startedAt: updated.startedAt as Date,
+          endedAt: updated.endedAt as Date,
+        }),
+      );
+    }
+
     return toPublicStream(updated);
   }
 
@@ -194,10 +213,20 @@ export class StreamsService {
       return toPublicStream(stream);
     }
 
+    const startedAt = new Date();
     const updated = await this.prisma.stream.update({
       where: { id: stream.id },
-      data: { status: 'LIVE', startedAt: new Date(), endedAt: null },
+      data: { status: 'LIVE', startedAt, endedAt: null },
     });
+
+    // Kick off the Phase 8 analytics pipeline for the new session.
+    await this.fireAnalytics(() =>
+      this.analytics.registerStreamStart({
+        id: updated.id,
+        channelId: updated.channelId,
+        startedAt: updated.startedAt as Date,
+      }),
+    );
 
     return toPublicStream(updated);
   }
@@ -216,12 +245,40 @@ export class StreamsService {
       return stream ? toPublicStream(stream) : null;
     }
 
+    const endedAt = new Date();
     const updated = await this.prisma.stream.update({
       where: { id: stream.id },
-      data: { status: 'ENDED', endedAt: new Date() },
+      data: { status: 'ENDED', endedAt },
     });
 
+    // Finalize the session's analytics (final sample, totals, Redis teardown).
+    if (updated.startedAt) {
+      await this.fireAnalytics(() =>
+        this.analytics.registerStreamEnd({
+          id: updated.id,
+          channelId: updated.channelId,
+          startedAt: updated.startedAt as Date,
+          endedAt: updated.endedAt as Date,
+        }),
+      );
+    }
+
     return toPublicStream(updated);
+  }
+
+  /**
+   * Analytics hooks must never break the streaming control plane: if the
+   * aggregation pipeline fails (e.g. Redis hiccup), the webhook still
+   * succeeds and the next flush / a later finalize retries. The broadcast
+   * state transition above has already happened, so at worst the analytics
+   * row lags one interval behind.
+   */
+  private async fireAnalytics(op: () => Promise<unknown>): Promise<void> {
+    try {
+      await op();
+    } catch (err) {
+      this.logger.warn(`Analytics hook failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   /** Loads a stream and enforces that `requesterId` owns its parent channel. */

@@ -66,7 +66,7 @@ metadata record — the actual video bytes live in MediaMTX, never in the databa
 | `streamKeyHash` | String? | Unique, nullable; SHA-256 digest of the raw stream key (see below). `null` once revoked |
 | `status` | StreamStatus | Default `OFFLINE`; indexed |
 | `startedAt` / `endedAt` | DateTime? | Session window — set by the MediaMTX publish/unpublish webhooks |
-| `viewerCount` | Int | Denormalized, default `0`; real-time increments via Redis presence are a future phase |
+| `viewerCount` | Int | Denormalized, default `0`; refreshed by the Phase 8 analytics flush (~30s), never per-viewer-heartbeat — see `docs/analytics.md` |
 | `createdAt` / `updatedAt` | DateTime | |
 
 ```prisma
@@ -215,7 +215,7 @@ The domain model only describes the **control plane** (metadata/state). The
 | `follows` | Follow | Follow/unfollow, following feed |
 | `notifications` | Notification | Dispatch & read state |
 | `moderation` | (ChatMessage/User) | Future: bans, deletes, reports |
-| `analytics` | derived | Future: viewer/engagement aggregates |
+| `analytics` | `StreamAnalytics`, `ViewerMetric` | Phase 8: viewer/engagement aggregates (Redis presence → sampled Postgres rows) |
 
 ---
 

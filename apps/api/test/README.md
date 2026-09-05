@@ -30,6 +30,26 @@ Run: `pnpm --filter @streamhub/api test:e2e`
 
 `pnpm --filter @streamhub/api test` runs both.
 
+## Bootstrap gotchas (worth knowing before adding a spec)
+
+- The suite boots the real `AppModule` and swaps only Postgres/Redis for
+  in-memory fakes (`test/utils/`). Global plumbing that `main.ts` adds
+  (`AllExceptionsFilter`, the `ValidationPipe`) must be added manually in
+  each spec's `beforeAll` — the error-envelope assertions throughout the
+  suites depend on `app.useGlobalFilters(new AllExceptionsFilter())`.
+- The global rate limit (`ThrottlerGuard` bound via `APP_GUARD`) cannot be
+  overridden by swapping the guard class out of the test container.
+  Neutralize its **storage** instead:
+
+  ```ts
+  .overrideProvider(ThrottlerStorage)
+  .useValue({ increment: async () => ({ totalHits: 1, timeToExpire: 0, isBlocked: false, timeToBlockExpire: 0 }) })
+  ```
+
+  Without this, a spec that makes more than 20 requests in a minute gets
+  intermittent `429`s. (`Phase 8 analytics`: the flush timer is disabled
+  under `NODE_ENV=test`; specs drive `AnalyticsService.flushNow()` directly.)
+
 ## Adding tests for a new module
 
 - Add a unit spec next to any non-trivial service/util as you write it.

@@ -139,21 +139,81 @@ type CreateCategoryInput = {
 
 type UpdateCategoryInput = Partial<Pick<FakeCategoryRow, 'name' | 'slug' | 'description' | 'thumbnail'>>;
 
+/** Minimal shape of the `stream_analytics` rows the analytics module uses. */
+export interface FakeStreamAnalyticsRow {
+  id: string;
+  streamId: string;
+  channelId: string;
+  startedAt: Date;
+  endedAt: Date | null;
+  durationSeconds: number;
+  watchTimeSeconds: number;
+  totalViews: number;
+  peakViewers: number;
+  averageViewers: number;
+  followersGained: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Minimal shape of the `viewer_metrics` rows the analytics module uses. */
+export interface FakeViewerMetricRow {
+  id: string;
+  streamId: string;
+  channelId: string;
+  viewers: number;
+  sampledAt: Date;
+}
+
 type ListWhere = Record<string, unknown>;
 
-/** Very small `where` matcher: supports plain equality and the two Prisma
- * shapes this codebase's list endpoints actually use — `{ contains, mode }`
- * (case-insensitive substring) and `{ OR: [...] }`. Enough to faithfully
- * exercise the real service code without reimplementing Prisma. */
+/** Compares a cell against a comparator condition ({ gte | gt | lte | lt }). */
+function matchesComparator(cell: unknown, condition: Record<string, unknown>): boolean {
+  const value = cell instanceof Date ? (cell as Date).getTime() : (cell as number);
+  if (condition.gte !== undefined && !(value >= (condition.gte as number))) return false;
+  if (condition.gt !== undefined && !(value > (condition.gt as number))) return false;
+  if (condition.lte !== undefined && !(value <= (condition.lte as number))) return false;
+  if (condition.lt !== undefined && !(value < (condition.lt as number))) return false;
+  return true;
+}
+
+/**
+ * Very small `where` matcher: supports plain equality and the Prisma shapes
+ * this codebase actually uses — `{ contains, mode }` (case-insensitive
+ * substring), `{ OR: [...] }`, and comparator operators `{ gte/lte/gt/lt }`
+ * (analytics date-range queries). Date cells compare by epoch ms. Enough to
+ * faithfully exercise the real service code without reimplementing Prisma.
+ */
 function matchesWhere(row: Record<string, unknown>, where: ListWhere): boolean {
   return Object.entries(where).every(([key, condition]) => {
     if (key === 'OR' && Array.isArray(condition)) {
       return condition.some((sub: ListWhere) => matchesWhere(row, sub));
     }
-    if (condition && typeof condition === 'object' && 'contains' in (condition as Record<string, unknown>)) {
-      const needle = String((condition as { contains: string }).contains).toLowerCase();
-      const haystack = String(row[key] ?? '').toLowerCase();
-      return haystack.includes(needle);
+    if (condition && typeof condition === 'object' && !Array.isArray(condition)) {
+      const cond = condition as Record<string, unknown>;
+      if ('contains' in cond) {
+        const needle = String(cond.contains).toLowerCase();
+        const haystack = String(row[key] ?? '').toLowerCase();
+        return haystack.includes(needle);
+      }
+      if ('gte' in cond || 'gt' in cond || 'lte' in cond || 'lt' in cond) {
+        const cell = row[key];
+        const num =
+          cell instanceof Date ? (cell as Date).getTime() : typeof cell === 'string' ? new Date(cell).getTime() : (cell as number);
+        return matchesComparator(num, {
+          gte: cond.gte instanceof Date ? (cond.gte as Date).getTime() : cond.gte,
+          gt: cond.gt instanceof Date ? (cond.gt as Date).getTime() : cond.gt,
+          lte: cond.lte instanceof Date ? (cond.lte as Date).getTime() : cond.lte,
+          lt: cond.lt instanceof Date ? (cond.lt as Date).getTime() : cond.lt,
+        });
+      }
+    }
+    if (row[key] instanceof Date && condition instanceof Date) {
+      return (row[key] as Date).getTime() === (condition as Date).getTime();
+    }
+    if (row[key] instanceof Date && !(condition instanceof Date)) {
+      // Date cell vs ISO-string or ms-number condition — compare as ms.
+      return (row[key] as Date).getTime() === new Date(String(condition)).getTime();
     }
     return row[key] === condition;
   });
@@ -172,6 +232,8 @@ export class FakePrismaService {
   private streamRows: FakeStreamRow[] = [];
   private followRows: FakeFollowRow[] = [];
   private categoryRows: FakeCategoryRow[] = [];
+  private streamAnalyticsRows: FakeStreamAnalyticsRow[] = [];
+  private viewerMetricRows: FakeViewerMetricRow[] = [];
 
   /** Test helper: reset state between test cases. */
   reset(): void {
@@ -181,6 +243,8 @@ export class FakePrismaService {
     this.streamRows = [];
     this.followRows = [];
     this.categoryRows = [];
+    this.streamAnalyticsRows = [];
+    this.viewerMetricRows = [];
   }
 
   /**
@@ -253,6 +317,43 @@ export class FakePrismaService {
       updatedAt: row.updatedAt ?? now,
     };
     this.streamRows.push(full);
+    return full;
+  }
+
+  /** Test helper: seed a stream_analytics row directly. */
+  seedStreamAnalytics(
+    row: Partial<FakeStreamAnalyticsRow> & { streamId: string; channelId: string; startedAt: Date },
+  ): FakeStreamAnalyticsRow {
+    const now = new Date();
+    const full: FakeStreamAnalyticsRow = {
+      id: row.id ?? randomUUID(),
+      streamId: row.streamId,
+      channelId: row.channelId,
+      startedAt: row.startedAt,
+      endedAt: row.endedAt ?? null,
+      durationSeconds: row.durationSeconds ?? 0,
+      watchTimeSeconds: row.watchTimeSeconds ?? 0,
+      totalViews: row.totalViews ?? 0,
+      peakViewers: row.peakViewers ?? 0,
+      averageViewers: row.averageViewers ?? 0,
+      followersGained: row.followersGained ?? 0,
+      createdAt: row.createdAt ?? now,
+      updatedAt: row.updatedAt ?? now,
+    };
+    this.streamAnalyticsRows.push(full);
+    return full;
+  }
+
+  /** Test helper: seed a viewer_metric row directly. */
+  seedViewerMetric(row: Partial<FakeViewerMetricRow> & { streamId: string; channelId: string; viewers: number }): FakeViewerMetricRow {
+    const full: FakeViewerMetricRow = {
+      id: row.id ?? randomUUID(),
+      streamId: row.streamId,
+      channelId: row.channelId,
+      viewers: row.viewers,
+      sampledAt: row.sampledAt ?? new Date(),
+    };
+    this.viewerMetricRows.push(full);
     return full;
   }
 
@@ -562,17 +663,13 @@ export class FakePrismaService {
       skip = 0,
       take = 20,
     }: {
-      where?: { followerId?: string; channelId?: string };
+      where?: ListWhere;
       include?: { channel?: boolean; follower?: boolean };
       orderBy?: Record<string, 'asc' | 'desc'>;
       skip?: number;
       take?: number;
     }) => {
-      let rows = this.followRows.filter(
-        (row) =>
-          (where.followerId === undefined || row.followerId === where.followerId) &&
-          (where.channelId === undefined || row.channelId === where.channelId),
-      );
+      let rows = this.followRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where));
       if (orderBy?.createdAt) {
         rows = [...rows].sort((a, b) =>
           orderBy.createdAt === 'asc'
@@ -589,12 +686,8 @@ export class FakePrismaService {
       });
     },
 
-    count: async ({ where = {} }: { where?: { followerId?: string; channelId?: string } }) => {
-      return this.followRows.filter(
-        (row) =>
-          (where.followerId === undefined || row.followerId === where.followerId) &&
-          (where.channelId === undefined || row.channelId === where.channelId),
-      ).length;
+    count: async ({ where = {} }: { where?: ListWhere }) => {
+      return this.followRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where)).length;
     },
 
     create: async ({ data }: { data: { followerId: string; channelId: string } }) => {
@@ -683,6 +776,167 @@ export class FakePrismaService {
       if (idx === -1) throw new Error('Record to delete does not exist.');
       const [removed] = this.categoryRows.splice(idx, 1);
       return removed;
+    },
+  };
+
+  streamAnalytics = {
+    findUnique: async ({
+      where,
+      include,
+    }: {
+      where: { id?: string; streamId?: string };
+      include?: { stream?: boolean | { select?: Record<string, boolean> } };
+    }) => {
+      const row =
+        this.streamAnalyticsRows.find((r) => (where.streamId ? r.streamId === where.streamId : r.id === where.id)) ?? null;
+      if (!row) return null;
+      if (include?.stream) {
+        const stream = this.streamRows.find((s) => s.id === row!.streamId) ?? null;
+        return { ...row, stream };
+      }
+      return row;
+    },
+
+    upsert: async ({
+      where,
+      create,
+      update,
+    }: {
+      where: { streamId: string };
+      create: Partial<FakeStreamAnalyticsRow> & { streamId: string; channelId: string; startedAt: Date };
+      update: Partial<Omit<FakeStreamAnalyticsRow, 'id' | 'streamId' | 'channelId' | 'startedAt'>>;
+    }) => {
+      const existing = this.streamAnalyticsRows.find((r) => r.streamId === where.streamId);
+      if (existing) {
+        if (update.endedAt !== undefined) existing.endedAt = update.endedAt ?? null;
+        if (update.durationSeconds !== undefined) existing.durationSeconds = update.durationSeconds;
+        if (update.watchTimeSeconds !== undefined) existing.watchTimeSeconds = update.watchTimeSeconds;
+        if (update.totalViews !== undefined) existing.totalViews = update.totalViews;
+        if (update.peakViewers !== undefined) existing.peakViewers = update.peakViewers;
+        if (update.averageViewers !== undefined) existing.averageViewers = update.averageViewers;
+        if (update.followersGained !== undefined) existing.followersGained = update.followersGained;
+        existing.updatedAt = new Date();
+        return existing;
+      }
+      const now = new Date();
+      const row: FakeStreamAnalyticsRow = {
+        id: create.id ?? randomUUID(),
+        streamId: create.streamId,
+        channelId: create.channelId,
+        startedAt: create.startedAt,
+        endedAt: create.endedAt ?? null,
+        durationSeconds: create.durationSeconds ?? 0,
+        watchTimeSeconds: create.watchTimeSeconds ?? 0,
+        totalViews: create.totalViews ?? 0,
+        peakViewers: create.peakViewers ?? 0,
+        averageViewers: create.averageViewers ?? 0,
+        followersGained: create.followersGained ?? 0,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.streamAnalyticsRows.push(row);
+      return row;
+    },
+
+    findMany: async ({
+      where = {},
+      include,
+      orderBy,
+      skip = 0,
+      take = 20,
+    }: {
+      where?: ListWhere;
+      include?: { stream?: boolean | { select?: Record<string, boolean> } };
+      orderBy?: Record<string, 'asc' | 'desc'>;
+      skip?: number;
+      take?: number;
+    }) => {
+      let rows = this.streamAnalyticsRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where));
+      if (orderBy) {
+        const [[field, dir]] = Object.entries(orderBy);
+        rows = [...rows].sort((a, b) => {
+          const av = (a as unknown as Record<string, unknown>)[field];
+          const bv = (b as unknown as Record<string, unknown>)[field];
+          const avMs = av instanceof Date ? av.getTime() : (av as number);
+          const bvMs = bv instanceof Date ? bv.getTime() : (bv as number);
+          return dir === 'asc' ? avMs - bvMs : bvMs - avMs;
+        });
+      }
+      const page = rows.slice(skip, skip + take);
+      if (include?.stream) {
+        return page.map((row) => ({
+          ...row,
+          stream: this.streamRows.find((s) => s.id === row.streamId) ?? null,
+        }));
+      }
+      return page;
+    },
+
+    count: async ({ where = {} }: { where?: ListWhere }) => {
+      return this.streamAnalyticsRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where)).length;
+    },
+
+    aggregate: async ({
+      where = {},
+      _count,
+      _sum = {},
+      _max = {},
+    }: {
+      where?: ListWhere;
+      _count?: { _all?: boolean };
+      _sum?: Record<string, boolean>;
+      _max?: Record<string, boolean>;
+    }) => {
+      const rows = this.streamAnalyticsRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where));
+      const sum: Record<string, number | null> = {};
+      for (const key of Object.keys(_sum)) {
+        sum[key] = rows.length
+          ? rows.reduce((acc, r) => acc + ((r as unknown as Record<string, number>)[key] ?? 0), 0)
+          : null;
+      }
+      const max: Record<string, number | null> = {};
+      for (const key of Object.keys(_max)) {
+        max[key] = rows.length
+          ? Math.max(...rows.map((r) => (r as unknown as Record<string, number>)[key] ?? 0))
+          : null;
+      }
+      return {
+        _count: { _all: rows.length },
+        _sum: sum,
+        _max: max,
+      };
+    },
+  };
+
+  viewerMetric = {
+    create: async ({ data }: { data: { streamId: string; channelId: string; viewers: number; sampledAt: Date } }) => {
+      const row: FakeViewerMetricRow = {
+        id: randomUUID(),
+        streamId: data.streamId,
+        channelId: data.channelId,
+        viewers: data.viewers,
+        sampledAt: data.sampledAt,
+      };
+      this.viewerMetricRows.push(row);
+      return row;
+    },
+
+    findMany: async ({
+      where = {},
+      orderBy,
+    }: {
+      where?: { streamId?: string; channelId?: string; sampledAt?: Record<string, unknown> };
+      orderBy?: Record<string, 'asc' | 'desc'>;
+    }) => {
+      let rows = this.viewerMetricRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where));
+      if (orderBy?.sampledAt) {
+        rows = [...rows].sort((a, b) =>
+          orderBy.sampledAt === 'asc'
+            ? a.sampledAt.getTime() - b.sampledAt.getTime()
+            : b.sampledAt.getTime() - a.sampledAt.getTime(),
+        );
+      }
+      return rows;
     },
   };
 }

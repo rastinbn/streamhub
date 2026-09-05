@@ -1,6 +1,7 @@
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
+import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { Test } from '@nestjs/testing';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerStorage } from '@nestjs/throttler';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/database/prisma.service';
@@ -28,11 +29,15 @@ describe('Follows (e2e)', () => {
       .useClass(FakePrismaService)
       .overrideProvider(RedisService)
       .useClass(FakeRedisService)
-      .overrideGuard(ThrottlerGuard)
-      .useValue({ canActivate: () => true })
+      // The real ThrottlerGuard (bound via APP_GUARD) cannot be swapped out
+      // from the test container; neutralizing its storage is what actually
+      // disables the 20 req/min global limit in e2e.
+      .overrideProvider(ThrottlerStorage)
+      .useValue({ increment: async () => ({ totalHits: 1, timeToExpire: 0, isBlocked: false, timeToBlockExpire: 0 }) })
       .compile();
 
     app = moduleRef.createNestApplication();
+    app.useGlobalFilters(new AllExceptionsFilter());
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
     app.setGlobalPrefix('api');
     app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
@@ -174,7 +179,8 @@ describe('Follows (e2e)', () => {
     it('lists followers, newest first, with pagination', async () => {
       const streamer = await registerUserWithChannel();
       const viewers = await Promise.all(
-        [1, 2, 3].map((n) => registerUser({ username: `f${n}`, email: `f${n}@example.com` })),
+        // `fan1`/`fan2`/`fan3` — note usernames must be ≥3 chars (RegisterDto).
+        [1, 2, 3].map((n) => registerUser({ username: `fan${n}`, email: `fan${n}@example.com` })),
       );
       for (const viewer of viewers) {
         await request(app.getHttpServer())
@@ -190,7 +196,7 @@ describe('Follows (e2e)', () => {
       expect(res.body.data.total).toBe(3);
       expect(res.body.data.items).toHaveLength(2);
       // Newest follower first; none of them leak a passwordHash.
-      expect(res.body.data.items[0].username).toBe('f3');
+      expect(res.body.data.items[0].username).toBe('fan3');
       expect(res.body.data.items[0].passwordHash).toBeUndefined();
       expect(res.body.data.items[0].followedAt).toBeDefined();
     });
@@ -207,8 +213,8 @@ describe('Follows (e2e)', () => {
 
   describe('GET /api/v1/users/me/following', () => {
     it('lists the channels the caller follows', async () => {
-      const streamerA = await registerUserWithChannel({ username: 'streamerA', email: 'a@example.com', slug: 'a-channel', name: 'A' });
-      const streamerB = await registerUserWithChannel({ username: 'streamerB', email: 'b@example.com', slug: 'b-channel', name: 'B' });
+      const streamerA = await registerUserWithChannel({ username: 'streamerA', email: 'a@example.com', slug: 'a-channel', name: 'Streamer A' });
+      const streamerB = await registerUserWithChannel({ username: 'streamerB', email: 'b@example.com', slug: 'b-channel', name: 'Streamer B' });
       const viewer = await registerUser({ username: 'follower1', email: 'follower1@example.com' });
 
       await request(app.getHttpServer())

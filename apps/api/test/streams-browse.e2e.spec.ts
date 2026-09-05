@@ -1,6 +1,7 @@
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
+import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { Test } from '@nestjs/testing';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerStorage } from '@nestjs/throttler';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/database/prisma.service';
@@ -25,11 +26,15 @@ describe('Streams browse/search (e2e)', () => {
       .useClass(FakePrismaService)
       .overrideProvider(RedisService)
       .useClass(FakeRedisService)
-      .overrideGuard(ThrottlerGuard)
-      .useValue({ canActivate: () => true })
+      // The real ThrottlerGuard (bound via APP_GUARD) cannot be swapped out
+      // from the test container; neutralizing its storage is what actually
+      // disables the 20 req/min global limit in e2e.
+      .overrideProvider(ThrottlerStorage)
+      .useValue({ increment: async () => ({ totalHits: 1, timeToExpire: 0, isBlocked: false, timeToBlockExpire: 0 }) })
       .compile();
 
     app = moduleRef.createNestApplication();
+    app.useGlobalFilters(new AllExceptionsFilter());
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
     app.setGlobalPrefix('api');
     app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });

@@ -365,7 +365,7 @@ Identical to `GET /streams` with `status` forced to `LIVE` (any `status` query p
   status: "OFFLINE" | "LIVE" | "ENDED";
   startedAt: string | null;   // ISO 8601, set when MediaMTX reports a publish
   endedAt: string | null;     // ISO 8601, set when MediaMTX reports an unpublish
-  viewerCount: number;        // denormalized; real-time increments are a future phase
+  viewerCount: number;        // refreshed by the analytics flush (~30s) while LIVE (Phase 8)
   createdAt: string;
   updatedAt: string;
 }
@@ -505,6 +505,86 @@ Body:
 
 ---
 
+## Analytics — `/analytics` *(Phase 8)*
+
+Streamer analytics: viewers, peak/average viewers, views, followers gained, duration and watch time. Full architecture in `docs/analytics.md`. The short version: viewer heartbeats touch **Redis only**; a background pipeline samples each live stream into Postgres every ~30s (`viewer_metrics` + a pre-aggregated `stream_analytics` row per stream), so every read below is a sum over pre-aggregated rows, not a computation from raw events.
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| POST | `/analytics/streams/:streamId/heartbeat` | — (public) | Viewer presence ping from a stream player |
+| GET | `/analytics/overview` | Bearer, owner | Channel totals/averages/peaks over a trailing window |
+| GET | `/analytics/streams` | Bearer, owner | Paginated per-stream analytics |
+| GET | `/analytics/streams/:streamId` | Bearer, owner | One stream's analytics |
+| GET | `/analytics/viewers` | Bearer, owner | Per-stream viewer-over-time timeline |
+
+"Owner" = the caller must own the channel whose analytics they read (resolved via `Channel.ownerId`). A streamer can never see another channel's numbers: reading someone else's real stream returns `403`, a nonexistent stream `404`, and overview/streams `404 "You do not have a channel yet"` for users without a channel. There is no moderator/admin override.
+
+### POST `/analytics/streams/:streamId/heartbeat`
+
+```json
+{ "viewerId": "<client-generated anonymous id, 8-128 chars>" }
+```
+
+`201` with `{ accepted: true }` while the stream is live; `{ accepted: false }` (still 201) for a stream that exists but isn't live. `404 "Stream not found"` for an unknown stream id, `400` for a malformed body. Counts a new **view** only when a viewer's presence key was absent (re-joins after 60s without a ping count again); nothing is written to Postgres per heartbeat.
+
+### GET `/analytics/overview`
+
+Query params: `days` (integer 1–90, default 30). `200`:
+
+```json
+{
+  "range": { "from": "...", "to": "...", "days": 30 },
+  "totals": { "streams": 12, "views": 3214, "watchTimeSeconds": 93433, "durationSeconds": 12355, "followersGained": 42 },
+  "averages": { "viewers": 7.56, "viewsPerStream": 267.8, "durationSecondsPerStream": 1029.6, "followersGainedPerStream": 3.5 },
+  "peaks": { "viewers": 128 },
+  "live": { "streams": 1, "viewers": 3 }
+}
+```
+
+`averages.viewers` is duration-weighted (total watch time ÷ total duration). `live` reflects the channel's currently-live streams (Redis presence at request time).
+
+### GET `/analytics/streams`
+
+Bearer + owner. Paginated (`page`/`limit`, see Pagination above), newest stream first. `200` with `{ items, total, page, limit }`, each item:
+
+```ts
+{
+  streamId: string;
+  title: string | null;
+  status: "OFFLINE" | "LIVE" | "ENDED";
+  startedAt: string;
+  endedAt: string | null;
+  currentViewers: number;          // Redis presence, meaningful while LIVE
+  totals: { views: number; watchTimeSeconds: number; durationSeconds: number; followersGained: number };
+  viewers: { peak: number; average: number };
+}
+```
+
+Only streams that actually went live have rows (a created-but-never-broadcast stream never appears).
+
+### GET `/analytics/streams/:streamId`
+
+Bearer + owner. Same shape as one list item. `403` for another channel's stream, `404 "Stream not found"` for an unknown id, `404 "Analytics not found for this stream yet"` for the caller's own never-broadcast stream.
+
+### GET `/analytics/viewers`
+
+Bearer + owner. Query params: `streamId` (required). Returns the stream's viewer-over-time timeline, minute-bucketed (hour-bucketed for streams > 48h), capped at 480 points:
+
+```ts
+{
+  streamId: string;
+  bucket: "minute" | "hour";
+  points: [
+    { t: "2026-09-01T12:00:00.000Z", peakViewers: 20, averageViewers: 15, samples: 2 }
+    // ...
+  ];
+}
+```
+
+Same `403`/`404` rules as `streams/:streamId`.
+
+---
+
 ## Error codes
 
 The `error.code` field is the HTTP status name (e.g. `BAD_REQUEST`, `CONFLICT`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`). `error.message` is safe to show to end users; 500-level errors always return a generic `"Internal server error"` message regardless of the underlying cause (see `AllExceptionsFilter`).
@@ -521,3 +601,5 @@ Redis caching is applied in exactly one place: **`GET /categories`**, with a 60-
 - `GET /channels`, `GET /channels/:slug`, `GET /channels/:id/followers` — `followersCount` changes on every follow/unfollow, and followers lists change just as often.
 
 Categories are the opposite profile: a small, admin-curated catalog that changes rarely (an occasional create/rename/delete, not per-request), so a short-TTL cache with write-time invalidation has a very low staleness window and a real payoff (`GET /categories` is likely the single most frequently hit browse endpoint, since every stream/channel browse UI needs the category list for its filter chips).
+
+Analytics reads (`GET /analytics/*`) are not cached either — they are cheap by construction (sums over pre-aggregated rows, bounded timeline folds) and a streamer expects fresh numbers on every dashboard load; see `docs/analytics.md` for the write-side batching that makes that possible.

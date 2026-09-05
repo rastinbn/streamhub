@@ -58,7 +58,15 @@ export class TokenService {
   }
 
   async verifyRefreshToken(token: string): Promise<RefreshPayload> {
-    const payload = verify(token, this.refreshSecret) as RefreshPayload;
+    // A token that fails signature/format/expiry checks is just as invalid
+    // as a revoked one — always a clean 401, never an unhandled
+    // JsonWebTokenError (which would surface as a 500).
+    let payload: RefreshPayload;
+    try {
+      payload = verify(token, this.refreshSecret) as RefreshPayload;
+    } catch {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
     const stored = await this.redis.getClient().get(`auth:refresh:${payload.sub}:${payload.jti}`);
     if (!stored) {
       throw new UnauthorizedException('Refresh token has been revoked or expired');

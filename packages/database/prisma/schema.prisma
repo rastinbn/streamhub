@@ -100,19 +100,73 @@ model Stream {
   status        StreamStatus @default(OFFLINE)
   startedAt     DateTime?
   endedAt       DateTime?
-  // Denormalized live viewer count. Real-time increments/decrements are
-  // expected to be driven by presence tracking (Redis) in a later phase;
-  // persisted here so it survives and is queryable alongside the rest of
-  // the stream's metadata.
+  // Denormalized live viewer count. Updated by the analytics flush pipeline
+  // (Phase 8) at each aggregation tick — never per viewer heartbeat, which
+  // touches Redis only — so a page refresh / status poll is never more than
+  // one flush interval (30s) stale.
   viewerCount   Int          @default(0)
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
+
+  analytics      StreamAnalytics?
+  viewerMetrics  ViewerMetric[]
 
   @@index([channelId])
   @@index([status])
   @@index([category])
   @@index([title])
   @@map("streams")
+}
+
+// Phase 8 — Analytics. See docs/analytics.md for the full architecture.
+//
+// Per-stream aggregate row, created when a broadcast goes LIVE and updated
+// by the analytics flush pipeline (every ~30s while live, and once more on
+// unpublish). Read endpoints never compute aggregates from raw samples —
+// they sum these pre-aggregated rows, which keeps the analytics queries
+// bounded regardless of stream count. `channelId`/`startedAt`/`endedAt` are
+// denormalized copies of `Stream` fields so channel-scoped queries
+// (overview, per-stream lists) hit a single small table with its own index
+// instead of joining through `streams`.
+model StreamAnalytics {
+  id               String   @id @default(cuid())
+  streamId         String   @unique
+  stream           Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  channelId        String
+  startedAt        DateTime
+  endedAt          DateTime?
+  durationSeconds  Int      @default(0)
+  watchTimeSeconds Int      @default(0)
+  totalViews       Int      @default(0)
+  peakViewers      Int      @default(0)
+  // Weighted by watch time: watchTimeSeconds / durationSeconds. Float so
+  // non-integer averages (e.g. 7.5 concurrent viewers) survive persistence.
+  averageViewers   Float    @default(0)
+  followersGained  Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([channelId, startedAt])
+  @@map("stream_analytics")
+}
+
+// Phase 8 — Analytics. One row per stream per aggregation tick (the flush
+// pipeline samples the live Redis presence set ~every 30s, NOT per
+// heartbeat). Rows power the per-stream "viewers over time" timeline and
+// the watch-time accumulation that yields average viewers. Bounded per
+// stream: a 24h broadcast at a 30s flush rate produces ~2.9k rows, and rows
+// are only ever read for one stream at a time.
+model ViewerMetric {
+  id        String   @id @default(cuid())
+  streamId  String
+  stream    Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  channelId String
+  viewers   Int
+  sampledAt DateTime @default(now())
+
+  @@index([streamId, sampledAt])
+  @@index([channelId, sampledAt])
+  @@map("viewer_metrics")
 }
 
 enum StreamStatus {

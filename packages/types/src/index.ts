@@ -5,3 +5,4 @@ export * from './channel';
 export * from './chat';
 export * from './category';
 export * from './follow';
+export * from './analytics';
