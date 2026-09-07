@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import Link from 'next/link';
 import { VideoOff } from 'lucide-react';
 
 export interface OfflineCard {
@@ -9,10 +10,12 @@ export interface OfflineCard {
   thumbnailAlt: string;
   avatarUrl: string;
   avatarAlt: string;
+  /** When set, the whole card becomes a link (e.g. /channel/{channelSlug}) */
+  href?: string;
 }
 
 export default function OfflineCardItem({ channel }: { channel: OfflineCard }) {
-  return (
+  const card = (
     <div className="flex flex-col group cursor-pointer opacity-70 hover:opacity-100 transition-opacity">
       {/* Thumbnail */}
       <div className="relative w-full aspect-video rounded-lg overflow-hidden mb-2 border border-outline-variant/30">
@@ -48,4 +51,9 @@ export default function OfflineCardItem({ channel }: { channel: OfflineCard }) {
       </div>
     </div>
   );
+
+  if (!channel.href) {
+    return card;
+  }
+  return <Link href={channel.href}>{card}</Link>;
 }

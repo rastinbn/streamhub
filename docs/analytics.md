@@ -66,6 +66,11 @@ count), pure Redis:
 2. `SET analytics:presence:<id>:<viewerId> 1 EX 60 NX` — if the key was
    fresh (OK), the viewer just (re)joined: `INCR views`, `INCR current`
    and opportunistically raise `peak`.
+3. SCAN the stream's presence keys and publish the exact current count to
+   the stream's Socket.IO room (Redis `chat:stream:<id>` → the chat gateway
+   relays it as a `viewer-count` event). Live breadth on the watch page is
+   therefore real-time and server-derived; the 30s flush is the fallback
+   for clients without a socket.
 
 A heartbeat for an existing but non-LIVE stream returns
 `{ accepted: false }` (still a 201, not an error — a player whose

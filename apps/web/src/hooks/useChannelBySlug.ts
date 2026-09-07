@@ -6,6 +6,7 @@ import type { ChannelPublic, PaginatedResult, StreamPublic } from '@streamhub/ty
 export function useChannelBySlug(slug: string | undefined): {
   channel: ChannelPublic | null;
   isLive: boolean;
+  liveStream: StreamPublic | null;
   isFollowing: boolean;
   isLoading: boolean;
   isError: boolean;
@@ -17,6 +18,7 @@ export function useChannelBySlug(slug: string | undefined): {
   const { accessToken } = useAuth();
   const [channel, setChannel] = useState<ChannelPublic | null>(null);
   const [isLive, setIsLive] = useState(false);
+  const [liveStream, setLiveStream] = useState<StreamPublic | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
@@ -29,6 +31,7 @@ export function useChannelBySlug(slug: string | undefined): {
     setIsError(false);
     setError(null);
     setIsNotFound(false);
+    setLiveStream(null);
 
     const results = await Promise.allSettled([
       channelsApi.getBySlug(slug),
@@ -54,7 +57,9 @@ export function useChannelBySlug(slug: string | undefined): {
 
     const ch = channelResult.value;
     setChannel(ch);
+    const matchingLive = liveResult.status === 'fulfilled' ? liveResult.value.items.find((s) => s.channelId === ch.id) ?? null : null;
     setIsLive(liveResult.status === 'fulfilled' && liveResult.value.items.some((s) => s.channelId === ch.id));
+    setLiveStream(matchingLive);
     setIsFollowing(
       followingResult?.status === 'fulfilled' && followingResult.value
         ? followingResult.value.items.some((c) => c.id === ch.id)
@@ -88,5 +93,5 @@ export function useChannelBySlug(slug: string | undefined): {
     [channel, accessToken],
   );
 
-  return { channel, isLive, isFollowing, isLoading, isError, error, isNotFound, refetch, setFollowed };
+  return { channel, isLive, liveStream, isFollowing, isLoading, isError, error, isNotFound, refetch, setFollowed };
 }

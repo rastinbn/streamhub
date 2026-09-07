@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import Link from 'next/link';
 import { Users } from 'lucide-react';
 
 export interface HomeStreamCardData {
@@ -11,6 +12,8 @@ export interface HomeStreamCardData {
   thumbnailAlt: string;
   avatarUrl: string;
   avatarAlt: string;
+  /** When set, the whole card becomes a link (e.g. /watch/{channelSlug}/{id}) */
+  href?: string;
   /** Responsive visibility */
   showFrom: 'all' | 'sm' | 'lg';
 }
@@ -22,8 +25,8 @@ export function getResponsiveClass(showFrom: 'all' | 'sm' | 'lg') {
 }
 
 export default function HomeStreamCard({ stream }: { stream: HomeStreamCardData }) {
-  return (
-    <article className="flex flex-col gap-sm group cursor-pointer">
+  const card = (
+    <>
       {/* Thumbnail */}
       <div className="relative w-full aspect-video rounded-lg overflow-hidden border border-outline-variant/30 bg-surface-container group-hover:border-primary transition-colors">
         <Image
@@ -66,6 +69,15 @@ export default function HomeStreamCard({ stream }: { stream: HomeStreamCardData 
           </p>
         </div>
       </div>
-    </article>
+    </>
+  );
+
+  if (!stream.href) {
+    return <article className="flex flex-col gap-sm group cursor-pointer">{card}</article>;
+  }
+  return (
+    <Link href={stream.href} className="flex flex-col gap-sm group cursor-pointer">
+      {card}
+    </Link>
   );
 }

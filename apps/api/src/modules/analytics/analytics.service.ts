@@ -18,6 +18,7 @@ import {
   ANALYTICS_FLUSH_INTERVAL_MS,
   ANALYTICS_HEARTBEAT_TTL_SECONDS,
   ANALYTICS_REDIS_LIVE_PREFIX,
+  ANALYTICS_REDIS_PRESENCE_PREFIX,
   ANALYTICS_TIMELINE_MAX_POINTS,
   currentKey,
   lastFlushKey,
@@ -28,6 +29,7 @@ import {
   watchKey,
 } from './analytics.constants';
 import { DAY_MS, HOUR_MS, MINUTE_MS, capTimelinePoints, computeAverages, foldViewerMetrics, round2 } from './analytics.util';
+import { chatChannelName } from '../chat/chat.constants';
 
 /** Minimal stream facts the lifecycle hooks need — see docs/analytics.md. */
 export interface StreamLifecycleEvent {
@@ -184,6 +186,8 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
     await this.prisma.stream.update({ where: { id: event.id }, data: { viewerCount: 0 } });
 
     await this.clearStreamRedisState(event.id);
+    // Presence keys are gone, so the room's clients converge on 0 viewers.
+    await this.broadcastViewerCount(event.id, 0);
     this.logger.log(
       `Finalized analytics for stream ${event.id}: ${durationSeconds}s, ${totalViews} views, ` +
         `${peakViewers} peak, ${followersGained} followers gained`,
@@ -227,6 +231,10 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
     if (fresh === 'OK') {
       await this.onFreshJoin(streamId);
     }
+    // Broadcast the exact current presence count to everyone in the stream's
+    // room, so live viewer numbers update without a page refresh, not just
+    // on fresh joins (a viewer whose key expires drops out mid-session too).
+    await this.broadcastViewerCount(streamId);
     return { accepted: true };
   }
 
@@ -308,6 +316,7 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
       },
     });
     await this.prisma.stream.update({ where: { id: streamId }, data: { viewerCount: count } });
+    await this.broadcastViewerCount(streamId, count);
   }
 
   // ------------------------------------------------------------------
@@ -402,6 +411,35 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
     return this.countPresence(streamId);
   }
 
+  /**
+   * Exact presence counts for MANY streams in a single SCAN pass (the keys
+   * are `analytics:presence:<streamId>:<viewerId>`, so one pass over the
+   * whole presence range yields every stream's count). Used by the public
+   * browse/status reads so live viewer numbers are real, never seeded.
+   */
+  async currentViewersMany(streamIds: string[]): Promise<Record<string, number>> {
+    if (streamIds.length === 0) return {};
+    const wanted = new Set(streamIds);
+    const counts: Record<string, number> = {};
+    const client = this.redis.getClient();
+    let cursor = '0';
+    do {
+      const [next, keys] = await client.scan(cursor, 'MATCH', `${ANALYTICS_REDIS_PRESENCE_PREFIX}*`, 'COUNT', 5000);
+      cursor = next;
+      for (const key of keys) {
+        // The stream id is everything before the final `:` (the viewer id,
+        // which never contains a colon, is the last segment).
+        const rest = key.slice(ANALYTICS_REDIS_PRESENCE_PREFIX.length);
+        const sep = rest.lastIndexOf(':');
+        const streamId = sep > 0 ? rest.slice(0, sep) : rest;
+        if (wanted.has(streamId)) {
+          counts[streamId] = (counts[streamId] ?? 0) + 1;
+        }
+      }
+    } while (cursor !== '0');
+    return counts;
+  }
+
   // ------------------------------------------------------------------
   // Private helpers
   // ------------------------------------------------------------------
@@ -465,6 +503,26 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
         average: row.averageViewers,
       },
     };
+  }
+
+  /**
+   * Publishes the live viewer count to every client in the stream's room via
+   * the chat gateway's shared `chat:stream:*` pub/sub path (the gateway
+   * relays `kind: 'presence'` payloads as a `viewer-count` event). The count
+   * is always server-derived — either the caller's already-fresh sample or a
+   * fresh presence SCAN. Non-fatal by design: presence broadcasts must never
+   * break the heartbeat path they ride on.
+   */
+  private async broadcastViewerCount(streamId: string, count?: number): Promise<void> {
+    try {
+      const viewerCount = count ?? (await this.countPresence(streamId));
+      await this.redis.getClient().publish(
+        chatChannelName(streamId),
+        JSON.stringify({ kind: 'presence', streamId, viewerCount }),
+      );
+    } catch (err) {
+      this.logger.warn(`Failed to broadcast viewer count for ${streamId}: ${err}`);
+    }
   }
 
   private async countPresence(streamId: string): Promise<number> {

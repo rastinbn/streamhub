@@ -44,6 +44,23 @@ export interface ChatHistoryPayload {
   messages: ChatMessagePayload[];
 }
 
+/** Live presence broadcast: how many viewers are on a stream right now. The
+ * count is the exact Redis presence set size (or the nearest flush sample)
+ * — never a client-supplied number. */
+export interface ViewerCountPayload {
+  streamId: string;
+  viewerCount: number;
+}
+
+/** Live follow broadcast: a channel's follower count just changed. Emitted
+ * to every room of the channel's *live* streams; `followersCount` is the
+ * authoritative post-transaction value from the server. */
+export interface FollowerCountPayload {
+  streamId: string;
+  channelId: string;
+  followersCount: number;
+}
+
 /** Client -> server events. */
 export interface ChatClientEvents {
   'chat:join': { streamId: string };
@@ -60,4 +77,6 @@ export interface ChatServerEvents {
   'chat:error': ChatErrorPayload;
   'chat:system': ChatSystemPayload;
   'chat:history': ChatHistoryPayload;
+  'viewer-count': ViewerCountPayload;
+  'follower-count': FollowerCountPayload;
 }

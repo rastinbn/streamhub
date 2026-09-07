@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { useParams, useRouter, notFound } from 'next/navigation';
 import Image from 'next/image';
-import { BadgeCheck, Heart, Bell, VideoOff, Share2 } from 'lucide-react';
+import Link from 'next/link';
+import { BadgeCheck, Heart, Bell, Radio, VideoOff, Share2 } from 'lucide-react';
 import { useChannelBySlug } from '@/hooks/useChannelBySlug';
 import { useAuth } from '@/lib/auth-context';
 import { formatCompact } from '@/lib/format';
@@ -21,7 +22,7 @@ export default function ChannelPage() {
   const { slug } = useParams<{ slug: string }>();
   const router = useRouter();
   const { accessToken } = useAuth();
-  const { channel, isLive, isFollowing, isLoading, isError, error, isNotFound, setFollowed } =
+  const { channel, isLive, liveStream, isFollowing, isLoading, isError, error, isNotFound, setFollowed } =
     useChannelBySlug(slug);
   const [notifyOn, setNotifyOn] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('Home');
@@ -205,13 +206,52 @@ export default function ChannelPage() {
               </div>
             )}
 
+            {isLive && liveStream && (
+              <Link
+                href={`/watch/${slug}/${liveStream.id}`}
+                className="group relative mb-xl flex flex-col overflow-hidden rounded-xl border border-live/30 bg-surface-container hover:border-live transition-colors"
+              >
+                <div className="relative aspect-video w-full">
+                  <Image
+                    src={liveStream.thumbnail ?? channel.banner ?? PLACEHOLDER_THUMBNAIL}
+                    alt={liveStream.title ?? 'Live stream'}
+                    fill
+                    className="object-cover transition-transform duration-300 group-hover:scale-105"
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                  <div className="absolute top-3 left-3 z-10">
+                    <span className="bg-live text-on-live font-label-sm text-label-sm px-2 py-0.5 rounded font-bold tracking-wider shadow-sm">
+                      Live
+                    </span>
+                  </div>
+                  <div className="absolute bottom-3 left-3 z-10 flex items-center gap-sm">
+                    {liveStream.viewerCount > 0 && (
+                      <span className="bg-black/60 backdrop-blur-sm text-white font-label-sm text-label-sm px-2 py-0.5 rounded flex items-center gap-1">
+                        <Radio className="w-3 h-3" />
+                        {formatCompact(liveStream.viewerCount)} viewers
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="p-md">
+                  <h3 className="font-body-md font-body-md font-semibold text-on-surface group-hover:text-primary transition-colors">
+                    {liveStream.title ?? 'Untitled stream'}
+                  </h3>
+                  <p className="mt-1 text-body-sm font-body-sm text-on-surface-variant">
+                    {liveStream.category ?? channel.category ?? 'Just Chatting'}
+                  </p>
+                </div>
+              </Link>
+            )}
+
             <div>
               <h3 className="mb-md font-headline-md text-headline-md text-on-surface">
                 Recent Broadcasts
               </h3>
               <div className="flex flex-col items-center justify-center gap-sm rounded-xl border border-dashed border-outline-variant py-2xl text-center">
                 <VideoOff className="h-8 w-8 text-outline" />
-                <p className="font-body-md text-body-md text-on-surface-variant">
+                <p className="font-body-md font-body-md text-on-surface-variant">
                   No broadcasts yet — VODs aren&#39;t available yet.
                 </p>
               </div>

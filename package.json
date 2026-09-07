@@ -9,6 +9,7 @@
   "scripts": {
     "predev": "pnpm --filter @streamhub/config --filter @streamhub/types --filter @streamhub/database build",
     "dev": "turbo run dev",
+    "dev:restart": "node scripts/dev-restart.mjs",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",

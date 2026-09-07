@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import Link from 'next/link';
 import { Users } from 'lucide-react';
 
 export interface LiveCard {
@@ -11,10 +12,12 @@ export interface LiveCard {
   thumbnailAlt: string;
   avatarUrl: string;
   avatarAlt: string;
+  /** When set, the whole card becomes a link (e.g. /watch/{channelSlug}/{streamId}) */
+  href?: string;
 }
 
 export default function LiveCardItem({ stream }: { stream: LiveCard }) {
-  return (
+  const card = (
     <div className="flex flex-col group cursor-pointer">
       {/* Thumbnail */}
       <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-surface-container-high border border-surface-container-high transition-all group-hover:-translate-y-1 group-hover:shadow-lg group-hover:border-primary">
@@ -69,4 +72,9 @@ export default function LiveCardItem({ stream }: { stream: LiveCard }) {
       </div>
     </div>
   );
+
+  if (!stream.href) {
+    return card;
+  }
+  return <Link href={stream.href}>{card}</Link>;
 }

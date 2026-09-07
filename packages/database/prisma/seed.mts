@@ -13,8 +13,9 @@
  *   pnpm db:seed
  *
  * Notes:
- * - Passwords are all `password123` (bcrypt-hashed) and every user is
- *   `emailVerified`, so any seeded account can log in through the web app.
+ * - Password is `password123` (bcrypt-hashed) for every user except
+ *   `mammad`, whose credentials are `mammad@gmail.com` / `1234567890`.
+ *   Every seeded account is `emailVerified`, so any of them can log in.
  * - bcryptjs is declared as a devDependency of this package, but the local
  *   node_modules link is stale (the install that recorded it was
  *   interrupted), so it is imported by path from apps/api's copy. A normal
@@ -68,8 +69,12 @@ const daysAgo = (d: number, hourOffset = 3) => new Date(Date.now() - d * 86_400_
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000);
 
 const PASSWORD = 'password123';
-const AVATAR = (seed: string) => `https://api.dicebear.com/9.x/avataaars/svg?seed=${seed}`;
-const BANNER = (seed: string) => `https://picsum.photos/seed/${seed}/1280/360`;
+// Local image assets live under apps/web/public/media and are referenced by
+// path so the app is self-contained (no external image host dependency).
+const AVATAR = (seed: string) => `/media/avatars/${seed}.png`;
+const BANNER = (seed: string) => `/media/banners/${seed}.jpg`;
+const CATEGORY_THUMB = (slug: string) => `/media/categories/${slug}.jpg`;
+const STREAM_THUMB = (id: string) => `/media/thumbnails/${id}.jpg`;
 
 // ---------------------------------------------------------------------------
 // Categories
@@ -100,6 +105,7 @@ const USERS: Array<{
   role: 'USER' | 'STREAMER' | 'MODERATOR' | 'ADMIN';
   bio: string;
   channelCategory: string;
+  password?: string;
 }> = [
   { id: 'usr_ninja', username: 'ninja', email: 'ninja@example.com', displayName: 'NinjaVibes', role: 'STREAMER', bio: 'Late night talks and good vibes.', channelCategory: 'Just Chatting' },
   { id: 'usr_luna', username: 'luna', email: 'luna@example.com', displayName: 'LunaPlays', role: 'STREAMER', bio: 'Speedruns and PB attempts.', channelCategory: 'Gaming' },
@@ -109,6 +115,7 @@ const USERS: Array<{
   { id: 'usr_rex', username: 'rex', email: 'rex@example.com', displayName: 'RexTheWanderer', role: 'USER', bio: 'Offline adventurer.', channelCategory: 'Travel' },
   { id: 'usr_mika', username: 'mika', email: 'mika@example.com', displayName: 'MikaMod', role: 'MODERATOR', bio: 'Keeping chat civil since day one.', channelCategory: 'Just Chatting' },
   { id: 'usr_zed', username: 'zed', email: 'zed@example.com', displayName: 'ZedOps', role: 'ADMIN', bio: 'Runs the servers, occasionally streams.', channelCategory: 'Science & Tech' },
+  { id: 'usr_mammad', username: 'mammad', email: 'mammad@gmail.com', displayName: 'Mammad', role: 'STREAMER', bio: 'I stream games and rank grinds — come say hi.', channelCategory: 'Gaming', password: '1234567890' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -132,6 +139,7 @@ const STREAMS: SeedStream[] = [
   { id: 'stream_live_luna', channelId: 'ch_luna', title: 'Hades speedrun — PB attempt #47', category: 'Gaming', status: 'LIVE', startedAt: hoursAgo(2.1), viewerCount: 342 },
   { id: 'stream_live_kai', channelId: 'ch_kai', title: 'Chill beats to study/relax to', category: 'Music', status: 'LIVE', startedAt: hoursAgo(3.2), viewerCount: 87 },
   { id: 'stream_live_ada', channelId: 'ch_ada', title: 'Building an analytics dashboard live', category: 'Science & Tech', status: 'LIVE', startedAt: minutesAgo(28), viewerCount: 45 },
+  { id: 'stream_live_mammad', channelId: 'ch_mammad', title: 'Rank grind — Valorant ranked climb', category: 'Gaming', status: 'LIVE', startedAt: minutesAgo(12), viewerCount: 23 },
   // --- Finished (past 2 weeks) ---
   // daysAgo(d, h) subtracts MORE for larger h, so start offsets must be
   // LARGER than end offsets (startedAt earlier than endedAt).
@@ -171,6 +179,12 @@ const FOLLOWS: Array<{ followerId: string; channelId: string }> = [
   { followerId: 'usr_ada', channelId: 'ch_ninja' },
   { followerId: 'usr_nova', channelId: 'ch_ninja' },
   { followerId: 'usr_rex', channelId: 'ch_luna' },
+  // mamad — a few people follow his channel, and he follows a few back
+  { followerId: 'usr_nova', channelId: 'ch_mammad' },
+  { followerId: 'usr_rex', channelId: 'ch_mammad' },
+  { followerId: 'usr_mika', channelId: 'ch_mammad' },
+  { followerId: 'usr_mammad', channelId: 'ch_luna' },
+  { followerId: 'usr_mammad', channelId: 'ch_ada' },
 ];
 
 const CHAT_LINES = [
@@ -295,14 +309,15 @@ async function main(): Promise<void> {
     ops.push(
       prisma.category.upsert({
         where: { slug: c.slug },
-        update: { name: c.name, description: c.description },
-        create: { id: `cat_${c.slug}`, name: c.name, slug: c.slug, description: c.description, thumbnail: BANNER(c.slug) },
+        update: { name: c.name, description: c.description, thumbnail: CATEGORY_THUMB(c.slug) },
+        create: { id: `cat_${c.slug}`, name: c.name, slug: c.slug, description: c.description, thumbnail: CATEGORY_THUMB(c.slug) },
       }),
     );
   }
 
   // Users
   for (const u of USERS) {
+    const userPasswordHash = await bcrypt.hash(u.password ?? PASSWORD, 10);
     ops.push(
       prisma.user.upsert({
         where: { username: u.username },
@@ -311,14 +326,15 @@ async function main(): Promise<void> {
           email: u.email,
           role: u.role,
           bio: u.bio,
-          passwordHash,
+          passwordHash: userPasswordHash,
           emailVerified: true,
+          avatar: AVATAR(u.username),
         },
         create: {
           id: u.id,
           username: u.username,
           email: u.email,
-          passwordHash,
+          passwordHash: userPasswordHash,
           displayName: u.displayName,
           role: u.role,
           bio: u.bio,
@@ -369,6 +385,7 @@ async function main(): Promise<void> {
           startedAt: stream.startedAt,
           endedAt: stream.endedAt ?? null,
           viewerCount: stream.viewerCount,
+          thumbnail: STREAM_THUMB(stream.id),
         },
         create: {
           id: stream.id,
@@ -380,6 +397,7 @@ async function main(): Promise<void> {
           endedAt: stream.endedAt ?? null,
           viewerCount: stream.viewerCount,
           streamKeyHash: null,
+          thumbnail: STREAM_THUMB(stream.id),
         },
       }),
     );
@@ -415,7 +433,7 @@ async function main(): Promise<void> {
   }
 
   // Chat messages (a handful per live stream)
-  const chatterIds = ['usr_nova', 'usr_rex', 'usr_mika', 'usr_zed', 'usr_ninja', 'usr_luna', 'usr_kai', 'usr_ada'];
+  const chatterIds = ['usr_nova', 'usr_rex', 'usr_mika', 'usr_zed', 'usr_ninja', 'usr_luna', 'usr_kai', 'usr_ada', 'usr_mammad'];
   let msgIndex = 0;
   for (const stream of STREAMS.filter((s) => s.status === 'LIVE')) {
     const count = 6 + Math.floor(rand() * 4);
@@ -470,7 +488,7 @@ async function main(): Promise<void> {
 
   console.log('Seed complete. Summary:');
   console.log(`  categories:        ${categories}`);
-  console.log(`  users:             ${users} (password for all: "${PASSWORD}")`);
+  console.log(`  users:             ${users} (password for all: "${PASSWORD}"; mamad: mamad@gmail.com / 1234567890)`);
   console.log(`  channels:          ${channels}`);
   console.log(`  streams:           ${streams} (${STREAMS.filter((s) => s.status === 'LIVE').length} live)`);
   console.log(`  stream analytics:  ${analytics}`);

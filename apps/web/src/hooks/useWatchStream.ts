@@ -89,8 +89,10 @@ export function useWatchStream(
       try {
         if (shouldFollow) {
           await channelsApi.follow(accessToken, stream.channelId);
+          setChannel((c) => (c ? { ...c, followersCount: c.followersCount + 1 } : c));
         } else {
           await channelsApi.unfollow(accessToken, stream.channelId);
+          setChannel((c) => (c ? { ...c, followersCount: Math.max(0, c.followersCount - 1) } : c));
         }
         setIsFollowing(shouldFollow);
         return true;

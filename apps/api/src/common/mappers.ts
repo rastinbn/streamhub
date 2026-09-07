@@ -26,9 +26,20 @@ export function toPublicChannel<T extends { id: unknown }>(channel: T): ChannelP
  * clients. The raw stream key itself is never persisted at all (see
  * `StreamsService`) — this only ever redacts the one-way digest used to
  * authenticate MediaMTX publish callbacks.
+ *
+ * When the query joined the `channel` relation (with slug/name/avatar
+ * selected), those are flattened into `channelSlug`/`channelName`/
+ * `channelAvatar` so list responses are self-describing for the client.
  */
-export function toPublicStream<T extends { streamKeyHash: unknown }>(stream: T): StreamPublic {
-  const { streamKeyHash, ...rest } = stream;
+export function toPublicStream<T extends { streamKeyHash: unknown; channel?: { slug?: string | null; name?: string | null; avatar?: string | null } | null }>(
+  stream: T,
+): StreamPublic {
+  const { streamKeyHash, channel, ...rest } = stream;
   void streamKeyHash;
-  return rest as unknown as StreamPublic;
+  return {
+    ...(rest as unknown as StreamPublic),
+    channelSlug: channel?.slug ?? null,
+    channelName: channel?.name ?? null,
+    channelAvatar: channel?.avatar ?? null,
+  };
 }

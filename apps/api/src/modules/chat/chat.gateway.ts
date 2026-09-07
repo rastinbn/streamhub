@@ -105,11 +105,22 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       const streamId = streamIdFromChannelName(channel);
       if (!streamId) return;
       try {
-        const message = JSON.parse(raw) as ChatMessagePayload | (ChatSystemPayload & { kind: 'system' });
-        if ('kind' in message && message.kind === 'system') {
-          this.server.to(roomName(streamId)).emit('chat:system', message);
+        const message = JSON.parse(raw) as { kind?: string } & Record<string, unknown>;
+        if (message.kind === 'presence') {
+          this.server.to(roomName(streamId)).emit('viewer-count', {
+            streamId,
+            viewerCount: Number(message.viewerCount),
+          });
+        } else if (message.kind === 'follower') {
+          this.server.to(roomName(streamId)).emit('follower-count', {
+            streamId,
+            channelId: String(message.channelId),
+            followersCount: Number(message.followersCount),
+          });
+        } else if (message.kind === 'system') {
+          this.server.to(roomName(streamId)).emit('chat:system', message as unknown as ChatSystemPayload);
         } else {
-          this.server.to(roomName(streamId)).emit('chat:message', message as ChatMessagePayload);
+          this.server.to(roomName(streamId)).emit('chat:message', message as unknown as ChatMessagePayload);
         }
       } catch (err) {
         this.logger.warn(`Dropped malformed chat pub/sub payload on ${channel}: ${err}`);

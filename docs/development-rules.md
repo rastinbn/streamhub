@@ -99,3 +99,15 @@ system. Read `docs/architecture.md` and `docs/ui-contract.md` alongside this fil
   `docs/domain-model.md` if the model changes.
 - If a UI reference is missing for a route (e.g. dashboard surfaces), do not finalize
   its visuals — keep a placeholder and flag the gap.
+
+## 9. Dev Server Runbook
+
+- `pnpm dev` (root) starts one turbo stack: API on :4000 (`nest start --watch`) and
+  web on :3000 (`next dev`). The web dev cache lives in `apps/web/.next`.
+- **Never run a second `next dev`/`pnpm dev` while one is already up.** Two stacks
+  compile into the same `apps/web/.next` and corrupt it — symptoms are styles that
+  look fine on hot-reload but "revert" after a cold restart, plus Next.js errors like
+  `missing required error components, refreshing`.
+- If the stack is already running (or after a crash), stop it and restart cleanly:
+  `pnpm dev:restart` — kills anything on :3000/:4000, wipes `apps/web/.next`, then
+  starts `pnpm dev`. Bring up/tear down the whole stack with one command only.

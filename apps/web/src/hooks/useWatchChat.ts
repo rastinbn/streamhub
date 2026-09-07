@@ -3,6 +3,8 @@ import type {
   ChatHistoryPayload,
   ChatMessagePayload,
   ChatSystemPayload,
+  FollowerCountPayload,
+  ViewerCountPayload,
 } from '@streamhub/types';
 import { useAuth } from '@/lib/auth-context';
 import { createChatSocket, isChatError, type ChatSocket } from '@/lib/chat';
@@ -48,6 +50,8 @@ export function useWatchChat(streamId: string | undefined) {
   const [status, setStatus] = useState<ChatConnectionState>('idle');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [liveViewerCount, setLiveViewerCount] = useState<number | null>(null);
+  const [liveFollowersCount, setLiveFollowersCount] = useState<number | null>(null);
   const socketRef = useRef<ChatSocket | null>(null);
 
   useEffect(() => {
@@ -56,6 +60,8 @@ export function useWatchChat(streamId: string | undefined) {
       setStatus('idle');
       setMessages([]);
       setErrorMessage(null);
+      setLiveViewerCount(null);
+      setLiveFollowersCount(null);
       socketRef.current?.disconnect();
       socketRef.current = null;
       return;
@@ -65,6 +71,8 @@ export function useWatchChat(streamId: string | undefined) {
     socketRef.current = socket;
     setStatus('connecting');
     setErrorMessage(null);
+    setLiveViewerCount(null);
+    setLiveFollowersCount(null);
 
     const onConnect = () => {
       setStatus('connecting');
@@ -88,6 +96,14 @@ export function useWatchChat(streamId: string | undefined) {
     const onError = (payload: unknown) => {
       if (isChatError(payload)) setErrorMessage(payload.message);
     };
+    const onViewerCount = (payload: ViewerCountPayload) => {
+      if (payload.streamId !== streamId) return;
+      setLiveViewerCount(payload.viewerCount);
+    };
+    const onFollowerCount = (payload: FollowerCountPayload) => {
+      if (payload.streamId !== streamId) return;
+      setLiveFollowersCount(payload.followersCount);
+    };
     const onConnectError = () => setStatus('error');
     const onDisconnect = (reason: string) => {
       // Socket.IO auto-reconnects; drop back to "connecting" until history
@@ -102,6 +118,8 @@ export function useWatchChat(streamId: string | undefined) {
     socket.on('chat:message', onMessage);
     socket.on('chat:system', onSystem);
     socket.on('chat:error', onError);
+    socket.on('viewer-count', onViewerCount);
+    socket.on('follower-count', onFollowerCount);
     socket.on('connect_error', onConnectError);
     socket.on('disconnect', onDisconnect);
 
@@ -111,6 +129,8 @@ export function useWatchChat(streamId: string | undefined) {
       socket.off('chat:message', onMessage);
       socket.off('chat:system', onSystem);
       socket.off('chat:error', onError);
+      socket.off('viewer-count', onViewerCount);
+      socket.off('follower-count', onFollowerCount);
       socket.off('connect_error', onConnectError);
       socket.off('disconnect', onDisconnect);
       if (socket.connected) {
@@ -138,6 +158,8 @@ export function useWatchChat(streamId: string | undefined) {
     status,
     messages,
     errorMessage,
+    liveViewerCount,
+    liveFollowersCount,
     requiresAuth: !accessToken,
     send,
     clearError: () => setErrorMessage(null),

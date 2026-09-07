@@ -1,12 +1,19 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { ChannelPublic, FollowerEntry } from '@streamhub/types';
 import { PrismaService } from '../../database/prisma.service';
+import { RedisService } from '../../redis/redis.service';
 import { toPublicChannel, toPublicUser } from '../../common/mappers';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import { chatChannelName } from '../chat/chat.constants';
 
 @Injectable()
 export class FollowsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(FollowsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   /**
    * Follows a channel. `followerId` always comes from the authenticated
@@ -40,6 +47,10 @@ export class FollowsService {
       }),
     ]);
 
+    // Notify every client in this channel's live stream rooms that the
+    // follower count changed, so open watcher pages update without a refresh.
+    await this.broadcastFollowerCount(channelId);
+
     return { following: true };
   }
 
@@ -58,6 +69,8 @@ export class FollowsService {
         data: { followersCount: { decrement: 1 } },
       }),
     ]);
+
+    await this.broadcastFollowerCount(channelId);
 
     return { following: false };
   }
@@ -105,5 +118,37 @@ export class FollowsService {
       return { ...toPublicUser(follower), followedAt } as unknown as FollowerEntry;
     });
     return { items, total, page: query.page ?? 1, limit: query.limit ?? 20 };
+  }
+
+  /**
+   * Publishes the authoritative follower count to every room owned by this
+   * channel's LIVE streams (the chat gateway relays `kind: 'follower'`
+   * payloads as `follower-count` events). Followers are denormalized on the
+   * Channel row, so the count is re-read post-transaction. Non-fatal: a
+   * failed broadcast must never roll back a follow.
+   */
+  private async broadcastFollowerCount(channelId: string): Promise<void> {
+    try {
+      const [channel, liveStreams] = await Promise.all([
+        this.prisma.channel.findUnique({ where: { id: channelId }, select: { followersCount: true } }),
+        this.prisma.stream.findMany({ where: { channelId, status: 'LIVE' }, select: { id: true } }),
+      ]);
+      if (!channel) return;
+      for (const stream of liveStreams) {
+        await this.redis
+          .getClient()
+          .publish(
+            chatChannelName(stream.id),
+            JSON.stringify({
+              kind: 'follower',
+              streamId: stream.id,
+              channelId,
+              followersCount: channel.followersCount,
+            }),
+          );
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to broadcast follower count for ${channelId}: ${err}`);
+    }
   }
 }

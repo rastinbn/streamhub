@@ -11,10 +11,11 @@
     font-family: var(--font-sans), sans-serif;
 }
 
-/* Body/label roles → the body face */
+/* Body/label roles → the body face (one font across the whole app) */
 .font-body-md,
 .font-body-sm,
 .font-label-md,
+.font-label-sm,
 .font-label-lg {
     font-family: var(--font-sans), sans-serif;
 }

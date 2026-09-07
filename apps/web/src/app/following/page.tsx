@@ -30,6 +30,12 @@ function toLiveCard(channel: ChannelPublic, stream?: StreamPublic): LiveCard {
     thumbnailAlt: PLACEHOLDER_ALT,
     avatarUrl: channel.avatar ?? PLACEHOLDER_AVATAR,
     avatarAlt: PLACEHOLDER_ALT,
+    href:
+      stream && channel.slug
+        ? `/watch/${channel.slug}/${stream.id}`
+        : channel.slug
+          ? `/channel/${channel.slug}`
+          : undefined,
   };
 }
 
@@ -42,6 +48,7 @@ function toOfflineCard(channel: ChannelPublic): OfflineCard {
     thumbnailAlt: PLACEHOLDER_ALT,
     avatarUrl: channel.avatar ?? PLACEHOLDER_AVATAR,
     avatarAlt: PLACEHOLDER_ALT,
+    href: channel.slug ? `/channel/${channel.slug}` : undefined,
   };
 }
 

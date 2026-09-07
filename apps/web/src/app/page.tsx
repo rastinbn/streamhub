@@ -27,19 +27,21 @@ const HERO: HeroData = {
     'A close-up portrait of a professional gamer with a focused expression, wearing a premium gaming headset. The lighting is cinematic, featuring dramatic purple and cyan rim lighting against a dark background. The aesthetic is sleek and modern.',
 };
 
-// The API returns a stream's title/category/viewers/thumbnail/status but no
-// channel name or avatar — render neutral placeholders for those.
+// Streams from the API carry their channel's slug/name/avatar, so cards
+// link straight to /watch/{channelSlug}/{streamId}. Missing bits fall back
+// to neutral placeholders.
 function toHomeCard(stream: StreamPublic, index: number): HomeStreamCardData {
   return {
     id: stream.id,
     title: stream.title ?? UNTITLED,
-    streamerName: MISSING_NAME,
+    streamerName: stream.channelName ?? MISSING_NAME,
     category: stream.category ?? MISSING_NAME,
     viewerCount: formatCompact(stream.viewerCount),
     thumbnailUrl: stream.thumbnail ?? PLACEHOLDER_THUMBNAIL,
     thumbnailAlt: PLACEHOLDER_ALT,
-    avatarUrl: PLACEHOLDER_AVATAR,
+    avatarUrl: stream.channelAvatar ?? PLACEHOLDER_AVATAR,
     avatarAlt: PLACEHOLDER_ALT,
+    href: stream.channelSlug ? `/watch/${stream.channelSlug}/${stream.id}` : undefined,
     showFrom: index < 2 ? 'all' : index < 4 ? 'sm' : 'lg',
   };
 }

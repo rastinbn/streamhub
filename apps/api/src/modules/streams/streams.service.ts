@@ -38,6 +38,7 @@ export class StreamsService {
     const [items, total] = await Promise.all([
       this.prisma.stream.findMany({
         where,
+        include: { channel: { select: { slug: true, name: true, avatar: true } } },
         orderBy: { [query.sortBy ?? 'viewerCount']: query.order ?? 'desc' },
         skip: query.skip,
         take: query.take,
@@ -45,8 +46,11 @@ export class StreamsService {
       this.prisma.stream.count({ where }),
     ]);
 
+    const publicStreams = items.map((s: unknown) => toPublicStream(s as { streamKeyHash: unknown }));
+    await this.applyLiveViewerCounts(publicStreams);
+
     return {
-      items: items.map((s: unknown) => toPublicStream(s as { streamKeyHash: unknown })),
+      items: publicStreams,
       total,
       page: query.page ?? 1,
       limit: query.limit ?? 20,
@@ -104,11 +108,16 @@ export class StreamsService {
   }
 
   async getById(id: string): Promise<StreamPublic> {
-    const stream = await this.prisma.stream.findUnique({ where: { id } });
+    const stream = await this.prisma.stream.findUnique({
+      where: { id },
+      include: { channel: { select: { slug: true, name: true, avatar: true } } },
+    });
     if (!stream) {
       throw new NotFoundException('Stream not found');
     }
-    return toPublicStream(stream);
+    const published = toPublicStream(stream);
+    await this.applyLiveViewerCounts([published]);
+    return published;
   }
 
   async getStatus(id: string): Promise<StreamStatusView> {
@@ -116,13 +125,21 @@ export class StreamsService {
     if (!stream) {
       throw new NotFoundException('Stream not found');
     }
-    return {
+    const status: StreamStatusView = {
       id: stream.id,
       status: stream.status,
       viewerCount: stream.viewerCount,
-      startedAt: stream.startedAt,
-      endedAt: stream.endedAt,
-    } as unknown as StreamStatusView;
+      startedAt: stream.startedAt ? stream.startedAt.toISOString() : null,
+      endedAt: stream.endedAt ? stream.endedAt.toISOString() : null,
+    };
+    if (stream.status === 'LIVE') {
+      try {
+        status.viewerCount = await this.analytics.currentViewers(id);
+      } catch {
+        // Redis down — fall back to the last flushed value.
+      }
+    }
+    return status;
   }
 
   async update(id: string, requesterId: string, dto: UpdateStreamDto): Promise<StreamPublic> {
@@ -278,6 +295,29 @@ export class StreamsService {
       await op();
     } catch (err) {
       this.logger.warn(`Analytics hook failed (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  /**
+   * Overrides `viewerCount` with the exact live presence count for every
+   * LIVE stream in the payload (a single grouped Redis scan, not per-stream
+   * scans). Real presence telemetry replaces the denormalized/seeded value
+   * so "viewers" is always truthful in the UI. Non-fatal: on a Redis hiccup
+   * the rows keep their last-flushed counts.
+   */
+  private async applyLiveViewerCounts(items: StreamPublic[]): Promise<void> {
+    const live = items.filter((s) => s.status === 'LIVE');
+    if (live.length === 0) return;
+    try {
+      const counts = await this.analytics.currentViewersMany(live.map((s) => s.id));
+      for (const stream of live) {
+        // A live stream with no presence keys has zero viewers — truth, not
+        // the denormalized/seeded stand-in. A Redis failure (caught below)
+        // is the only path that keeps the stored value.
+        stream.viewerCount = counts[stream.id] ?? 0;
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to read live viewer counts: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { MoreVertical, Users } from 'lucide-react';
 
 export interface StreamCardProps {
@@ -11,6 +12,8 @@ export interface StreamCardProps {
   avatarUrl: string;
   avatarAlt: string;
   isLive: boolean;
+  /** When set, the whole card becomes a link (e.g. /watch/{channelSlug}/{id}) */
+  href?: string;
 }
 
 export default function StreamCard({
@@ -24,8 +27,9 @@ export default function StreamCard({
   avatarUrl,
   avatarAlt,
   isLive,
+  href,
 }: StreamCardProps) {
-  return (
+  const card = (
     <div key={id} className="flex flex-col group cursor-pointer">
       <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-surface-container-high border border-surface-container-high transition-all group-hover:-translate-y-1 group-hover:shadow-lg group-hover:border-primary">
         <img
@@ -75,4 +79,9 @@ export default function StreamCard({
       </div>
     </div>
   );
+
+  if (!href) {
+    return card;
+  }
+  return <Link href={href}>{card}</Link>;
 }

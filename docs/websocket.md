@@ -64,6 +64,8 @@ header is also accepted.
 | `chat:error` | `{ code: ChatErrorCode, message: string }` | A rejected action (validation, auth, rate limit, ban, etc). |
 | `chat:system` | `ChatSystemPayload` | Join/leave/timeout/ban/unban notices for the room. |
 | `chat:history` | `{ streamId: string, messages: ChatMessagePayload[] }` | Sent once, right after a successful `chat:join`, with recent backlog. |
+| `viewer-count` | `{ streamId: string, viewerCount: number }` | Live presence broadcast — server-derived count of viewers currently on the stream. Emitted on every viewer heartbeat (join/expiry) and each analytics flush. |
+| `follower-count` | `{ streamId: string, channelId: string, followersCount: number }` | The channel's follower count changed (follow/unfollow). Emitted to every room of that channel's *live* streams with the authoritative post-transaction value. |
 
 ```ts
 // packages/types/src/chat.ts (shared with the web client)
@@ -93,6 +95,17 @@ interface ChatSystemPayload {
   message: string;
   targetUserId?: string;
   createdAt: string;
+}
+
+interface ViewerCountPayload {
+  streamId: string;
+  viewerCount: number;
+}
+
+interface FollowerCountPayload {
+  streamId: string;
+  channelId: string;
+  followersCount: number;
 }
 ```
 

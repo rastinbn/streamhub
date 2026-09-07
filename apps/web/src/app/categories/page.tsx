@@ -24,7 +24,7 @@ export default function Categories() {
 
   return (
     <div className="mx-auto w-full max-w-[1920px] flex-1 p-md pt-16 md:p-lg md:pt-0 lg:p-xl">
-      <h1 className="mb-lg text-display-lg-mobile font-display-lg-mobile text-on-surface md:text-display-lg md:font-display-lg">
+      <h1 className="mb-lg text-headline-lg-mobile font-headline-lg-mobile text-on-surface md:text-display-lg md:font-display-lg">
         Categories
       </h1>
 

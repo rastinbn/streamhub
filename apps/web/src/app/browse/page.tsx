@@ -42,20 +42,22 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'alpha', label: 'A–Z' },
 ];
 
-// The API returns a stream's title/category/viewers/thumbnail/status but no
-// channel name or avatar — render neutral placeholders for those.
+// Streams from the API carry their channel's slug/name/avatar, so cards
+// link straight to /watch/{channelSlug}/{streamId}. Missing bits fall back
+// to neutral placeholders.
 function toCard(stream: StreamPublic): StreamCardProps {
   return {
     id: stream.id,
     title: stream.title ?? UNTITLED,
-    streamerName: MISSING_NAME,
+    streamerName: stream.channelName ?? MISSING_NAME,
     category: stream.category ?? MISSING_NAME,
     viewerCount: Number((stream.viewerCount / 1000).toFixed(1)),
     thumbnailUrl: stream.thumbnail ?? PLACEHOLDER_THUMBNAIL,
     thumbnailAlt: PLACEHOLDER_ALT,
-    avatarUrl: PLACEHOLDER_AVATAR,
+    avatarUrl: stream.channelAvatar ?? PLACEHOLDER_AVATAR,
     avatarAlt: PLACEHOLDER_ALT,
     isLive: stream.status === 'LIVE',
+    href: stream.channelSlug ? `/watch/${stream.channelSlug}/${stream.id}` : undefined,
   };
 }
 

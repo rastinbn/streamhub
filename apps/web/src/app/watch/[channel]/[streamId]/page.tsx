@@ -61,7 +61,7 @@ export default function WatchPage() {
 
   const watchStream: WatchStream = {
     title: stream.title ?? UNTITLED,
-    viewerCount: formatCompact(status?.viewerCount ?? stream.viewerCount),
+    viewerCount: formatCompact(chat.liveViewerCount ?? status?.viewerCount ?? stream.viewerCount),
     duration: formatDuration(status?.startedAt ?? stream.startedAt, status?.endedAt ?? stream.endedAt),
     thumbnailUrl: stream.thumbnail ?? channel?.banner ?? PLACEHOLDER_THUMBNAIL,
     thumbnailAlt: PLACEHOLDER_ALT,
@@ -69,7 +69,7 @@ export default function WatchPage() {
       name: channel?.name ?? MISSING_NAME,
       avatarUrl: channel?.avatar ?? PLACEHOLDER_AVATAR,
       avatarAlt: PLACEHOLDER_ALT,
-      followers: channel ? formatCompact(channel.followersCount) : MISSING_NAME,
+      followers: channel ? formatCompact(chat.liveFollowersCount ?? channel.followersCount) : MISSING_NAME,
       verified: false,
     },
     category: stream.category ?? channel?.category ?? MISSING_NAME,
