@@ -17,7 +17,8 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,md,json}\"",
     "clean": "turbo run clean && rm -rf node_modules",
     "db:generate": "pnpm --filter @streamhub/database db:generate",
-    "db:migrate": "pnpm --filter @streamhub/database db:migrate"
+    "db:migrate": "pnpm --filter @streamhub/database db:migrate",
+    "db:seed": "pnpm --filter @streamhub/database db:seed"
   },
   "devDependencies": {
     "turbo": "^2.1.0",

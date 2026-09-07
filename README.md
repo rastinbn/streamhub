@@ -94,6 +94,14 @@ pnpm db:generate
 pnpm db:migrate
 ```
 
+### 4.5. (Optional) Load fake data
+
+```bash
+pnpm db:seed
+```
+
+Populates categories, users, channels, live/finished streams, analytics, follows, and chat with deterministic fake data. Every seeded account uses password `password123` and is email-verified, so you can log in immediately (e.g. `luna@example.com`). Safe to re-run — it upserts by stable IDs and never duplicates or deletes existing rows.
+
 ### 5. Start the apps
 
 ```bash

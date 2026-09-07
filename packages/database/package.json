@@ -11,7 +11,11 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
+    "db:seed": "node --experimental-strip-types prisma/seed.mts",
     "db:studio": "prisma studio"
+  },
+  "prisma": {
+    "seed": "node --experimental-strip-types prisma/seed.mts"
   },
   "dependencies": {
     "@prisma/client": "^5.19.0"
@@ -19,6 +23,7 @@
   "devDependencies": {
     "@streamhub/eslint-config": "workspace:*",
     "@types/node": "^20.14.15",
+    "bcryptjs": "^2.4.3",
     "prisma": "^5.19.0",
     "typescript": "^5.5.4"
   }
