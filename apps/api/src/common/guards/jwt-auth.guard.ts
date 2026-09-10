@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { verify } from 'jsonwebtoken';
 import type { Request } from 'express';
 import type { Role } from '@streamhub/types';
+import { getSecret } from '../config/secrets';
 
 export interface AuthUser {
   sub: string;
@@ -30,7 +31,7 @@ export class JwtAuthGuard implements CanActivate {
 
     const token = header.slice('Bearer '.length);
     try {
-      const payload = verify(token, process.env.JWT_SECRET ?? 'dev-access-secret') as AuthUser;
+      const payload = verify(token, getSecret('JWT_SECRET', 'dev-access-secret')) as AuthUser;
       (req as RequestWithUser).user = payload;
       return true;
     } catch {

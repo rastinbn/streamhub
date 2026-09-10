@@ -1,5 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
+import { getSecret } from '../config/secrets';
 
 /**
  * Authenticates inbound lifecycle callbacks from MediaMTX (publish /
@@ -14,7 +15,7 @@ import type { Request } from 'express';
 export class MediaMtxWebhookGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const req = context.switchToHttp().getRequest<Request>();
-    const expected = process.env.MEDIAMTX_WEBHOOK_SECRET ?? 'dev-mediamtx-secret';
+    const expected = getSecret('MEDIAMTX_WEBHOOK_SECRET', 'dev-mediamtx-secret');
     const provided = req.headers['x-webhook-secret'];
 
     if (provided !== expected) {

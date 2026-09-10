@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { CalendarPlus, ShieldCheck } from 'lucide-react';
+import type { Metadata } from 'next';
 import { usersApi } from '@/lib/api';
 import { PLACEHOLDER_AVATAR, MISSING_NAME } from '@/lib/placeholders';
+import { absoluteUrl, ogImage } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,11 +12,34 @@ function formatJoined(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 }
 
-export default async function UserProfilePage({
-  params,
-}: {
+interface PageProps {
   params: { username: string };
-}) {
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const canonical = absoluteUrl(`/profile/${params.username}`);
+  try {
+    const user = await usersApi.getProfile(params.username);
+    const displayName = user.displayName ?? user.username ?? MISSING_NAME;
+    return {
+      title: `${displayName} (@${user.username})`,
+      description: user.bio ?? `${displayName}'s StreamHub profile.`,
+      alternates: { canonical },
+      openGraph: {
+        type: 'profile',
+        url: canonical,
+        title: `${displayName} (@${user.username})`,
+        description: user.bio ?? `${displayName}'s StreamHub profile.`,
+        images: ogImage(user.avatar),
+      },
+      twitter: { card: 'summary', title: `${displayName} (@${user.username})`, description: user.bio ?? `${displayName}'s StreamHub profile.` },
+    };
+  } catch {
+    return { title: 'Profile not found', robots: { index: false, follow: false }, alternates: { canonical } };
+  }
+}
+
+export default async function UserProfilePage({ params }: PageProps) {
   let user;
   try {
     user = await usersApi.getProfile(params.username);

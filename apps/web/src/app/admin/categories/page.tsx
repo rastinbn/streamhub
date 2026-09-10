@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { CategoryPublic, CreateCategoryInput } from '@streamhub/types';
 import { useAuth } from '@/lib/auth-context';
 import { categoriesApi } from '@/lib/api';
-import { useCategories } from '@/hooks/useCategories';
+import { useAdminList } from '@/hooks/useAdminList';
 import { PLACEHOLDER_AVATAR } from '@/lib/placeholders';
 import { formatDate } from '@/lib/format';
 import {
@@ -13,12 +13,15 @@ import {
   EmptyRow,
   ErrorNote,
   LoadingRow,
+  Pagination,
   TableShell,
   btnDanger,
   btnGhost,
   btnPrimary,
   inputClasses,
 } from '@/components/admin/admin-ui';
+
+const PAGE_SIZE = 10;
 
 type NewCategory = {
   name: string;
@@ -39,7 +42,12 @@ function slugify(name: string): string {
 
 export default function AdminCategoriesPage() {
   const { accessToken } = useAuth();
-  const { categories, isLoading, error, refetch } = useCategories();
+  const [page, setPage] = useState(1);
+  const { data, isLoading, error, refetch } = useAdminList<CategoryPublic>(
+    (_token) => categoriesApi.list({ page, limit: PAGE_SIZE }),
+    `admin-categories:${page}`,
+  );
+  const categories = data?.items ?? [];
   const [form, setForm] = useState<NewCategory>(empty);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -267,6 +275,10 @@ export default function AdminCategoriesPage() {
           )}
         </tbody>
       </TableShell>
+
+      {data && data.total > 0 && (
+        <Pagination page={page} total={data.total} limit={PAGE_SIZE} onPage={(p) => setPage(p)} />
+      )}
     </div>
   );
 }

@@ -9,6 +9,11 @@ import type { ChatConnectionState } from '@/hooks/useWatchChat';
 
 const MAX_LENGTH = 200;
 
+/** Minimum gap between sends — mirrors the server's own per-user rate limit
+ * (5 msgs/10s) so a spamming Enter key can't flood the socket with garbage
+ * the server would just have to reject anyway. */
+const SEND_COOLDOWN_MS = 400;
+
 export default function ChatSidebar({
   chat,
   viewerCount,
@@ -28,6 +33,7 @@ export default function ChatSidebar({
 }) {
   const [draft, setDraft] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastSendAt = useRef(0);
   const isConnected = connectionStatus === 'connected';
 
   useEffect(() => {
@@ -37,7 +43,12 @@ export default function ChatSidebar({
 
   function submit() {
     if (!isConnected || draft.trim().length === 0) return;
-    if (onSend(draft)) setDraft('');
+    const now = Date.now();
+    if (now - lastSendAt.current < SEND_COOLDOWN_MS) return;
+    if (onSend(draft)) {
+      lastSendAt.current = now;
+      setDraft('');
+    }
   }
 
   return (

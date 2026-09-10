@@ -16,10 +16,14 @@ export function isHttpUrl(value: string): boolean {
   }
 }
 
-/** True for paths the app itself controls, or safe remote http(s) URLs. */
+/**
+ * True for paths the app itself controls, or safe remote http(s) URLs.
+ * `//host/path` scheme-relative URLs are rejected: they look like app paths
+ * but actually load from a third-party host (a tracking/exfiltration vector).
+ */
 export function isSafeImageSrc(value: string): boolean {
-  if (value.startsWith('/')) return true;
-  return /^[a-z]+:/.test(value) === false ? false : isHttpUrl(value);
+  if (value.startsWith('/') && !value.startsWith('//')) return true;
+  return isHttpUrl(value);
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, channelsApi, streamsApi, usersApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { emitDataChange, useRouteRefreshKey } from '@/lib/data-sync';
@@ -27,6 +27,9 @@ export function useChannelBySlug(slug: string | undefined): {
   const [isError, setIsError] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isNotFound, setIsNotFound] = useState(false);
+  // In-flight guard so rapid clicks on follow/unfollow can't fire duplicate
+  // toggles and desync the client's UI from the server's real state.
+  const followBusy = useRef(false);
 
   const refetch = useCallback(async () => {
     if (!slug) return;
@@ -77,7 +80,8 @@ export function useChannelBySlug(slug: string | undefined): {
 
   const setFollowed = useCallback(
     async (shouldFollow: boolean): Promise<boolean> => {
-      if (!channel || !accessToken) return false;
+      if (!channel || !accessToken || followBusy.current) return false;
+      followBusy.current = true;
       try {
         if (shouldFollow) {
           await channelsApi.follow(accessToken, channel.id);
@@ -92,6 +96,8 @@ export function useChannelBySlug(slug: string | undefined): {
         return true;
       } catch {
         return false;
+      } finally {
+        followBusy.current = false;
       }
     },
     [channel, accessToken],

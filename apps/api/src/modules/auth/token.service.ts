@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { Redis } from 'ioredis';
 import type { Role } from '@streamhub/types';
 import { RedisService } from '../../redis/redis.service';
+import { getSecret } from '../../common/config/secrets';
 
 interface TokenSubject {
   id: string;
@@ -29,8 +30,8 @@ const REFRESH_TTL_SEC = 60 * 60 * 24 * 7; // 7 days
  */
 @Injectable()
 export class TokenService {
-  private readonly accessSecret = process.env.JWT_SECRET ?? 'dev-access-secret';
-  private readonly refreshSecret = process.env.JWT_REFRESH_SECRET ?? 'dev-refresh-secret';
+  private readonly accessSecret = getSecret('JWT_SECRET', 'dev-access-secret');
+  private readonly refreshSecret = getSecret('JWT_REFRESH_SECRET', 'dev-refresh-secret');
 
   constructor(private readonly redis: RedisService) {}
 

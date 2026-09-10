@@ -4,6 +4,7 @@ import { CHAT_MAX_MESSAGE_LENGTH } from '../chat.constants';
 export class SendMessageDto {
   @IsString()
   @MinLength(1)
+  @MaxLength(64)
   streamId!: string;
 
   @IsString()

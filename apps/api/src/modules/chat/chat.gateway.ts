@@ -16,6 +16,7 @@ import { plainToInstance } from 'class-transformer';
 import type { Role } from '@streamhub/types';
 import type { ChatErrorCode, ChatMessagePayload, ChatSystemPayload } from '@streamhub/types';
 import { RedisService } from '../../redis/redis.service';
+import { getSecret } from '../../common/config/secrets';
 import { ChatService, ChatDuplicateMessageError, ChatRateLimitedError, type StreamContext } from './chat.service';
 import { ChatModerationService } from './chat-moderation.service';
 import { StreamRoomDto } from './dto/stream-room.dto';
@@ -302,7 +303,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       throw new UnauthorizedException('Missing token');
     }
 
-    const payload = verify(token, process.env.JWT_SECRET ?? 'dev-access-secret') as {
+    const payload = verify(token, getSecret('JWT_SECRET', 'dev-access-secret')) as {
       sub: string;
       username: string;
       role: Role;

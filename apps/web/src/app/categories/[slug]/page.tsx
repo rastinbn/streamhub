@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useParams, notFound } from 'next/navigation';
 import StreamCard, { StreamCardProps } from '@/components/streams/StreamCard';
 import { useCategories } from '@/hooks/useCategories';
-import { useStreams } from '@/hooks/useStreams';
+import { usePaginatedStreams } from '@/hooks/usePaginatedStreams';
 import { formatCompact } from '@/lib/format';
 import {
   MISSING_NAME,
@@ -69,10 +69,10 @@ export default function CategoryPage() {
   const category = useMemo(() => categories.find((c) => c.slug === slug), [categories, slug]);
 
   // Streams in this category come from the same /streams endpoint the rest of
-  // the app browses; the list is split client-side by status.
-  const { streams, isLoading: isStreamsLoading, isError, error } = useStreams(
-    category ? { category: category.name, limit: 50 } : {},
-  );
+  // the app browses; the list is split client-side by status. Pages accumulate
+  // server-side so long lists never truncate at the default 20.
+  const { streams, total, hasMore, isLoading: isStreamsLoading, isLoadingMore, isError, error, loadMore } =
+    usePaginatedStreams(category ? { category: category.name } : {});
 
   const live = useMemo(() => streams.filter((s) => s.status === 'LIVE'), [streams]);
   const past = useMemo(() => streams.filter((s) => s.status === 'ENDED'), [streams]);
@@ -143,7 +143,7 @@ export default function CategoryPage() {
               )}
               <span className="flex items-center gap-1 rounded-full border border-outline-variant/50 bg-surface-container px-3 py-1 font-label-md text-label-md text-on-surface-variant">
                 <LayoutGrid className="h-3.5 w-3.5" />
-                {streams.length} stream{streams.length === 1 ? '' : 's'}
+                {total} stream{total === 1 ? '' : 's'}
               </span>
             </div>
           </div>
@@ -187,6 +187,25 @@ export default function CategoryPage() {
             </p>
           ) : (
             <StreamGrid streams={past} emptyLabel="No past streams in this category yet." />
+          )}
+
+          {hasMore && (
+            <div className="mt-lg flex flex-col items-center gap-sm border-t border-outline-variant pt-lg">
+              <p className="font-body-sm text-body-sm text-on-surface-variant">
+                Showing {streams.length} of {total} streams
+              </p>
+              {isLoadingMore ? (
+                <p className="font-body-sm text-body-sm text-on-surface-variant">Loading more…</p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void loadMore()}
+                  className="rounded-lg border border-outline-variant bg-surface px-lg py-sm font-body-sm text-body-sm text-on-surface transition-colors hover:border-primary hover:text-primary"
+                >
+                  Load more streams
+                </button>
+              )}
+            </div>
           )}
         </section>
       </div>

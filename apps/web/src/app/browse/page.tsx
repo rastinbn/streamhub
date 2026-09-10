@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import StreamCard, { StreamCardProps } from '@/components/streams/StreamCard';
 import { useStreams } from '@/hooks/useStreams';
+import { usePaginatedStreams } from '@/hooks/usePaginatedStreams';
 import type { StreamListQuery } from '@/lib/api';
 import { MISSING_NAME, PLACEHOLDER_ALT, PLACEHOLDER_AVATAR, PLACEHOLDER_THUMBNAIL, UNTITLED } from '@/lib/placeholders';
 import type { StreamPublic } from '@streamhub/types';
@@ -93,7 +94,8 @@ export default function Browse() {
   const sortRef = useRef<HTMLDivElement>(null);
 
   const query = useMemo(() => buildQuery(activeFilter, sortBy), [activeFilter, sortBy]);
-  const { streams, isLoading, isError, error } = useStreams(query);
+  const { streams, total, hasMore, isLoading, isLoadingMore, isError, error, loadMore } =
+    usePaginatedStreams(query);
 
   // Header count of live streams — a separate, lightweight call for `total`.
   const { total: liveTotal } = useStreams({ limit: 1 }, { liveOnly: true });
@@ -253,6 +255,26 @@ export default function Browse() {
               />
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Load more */}
+      {hasMore && (
+        <div className="mt-lg flex flex-col items-center gap-sm border-t border-outline-variant pt-lg">
+          <p className="text-body-sm text-on-surface-variant">
+            Showing {streams.length} of {total} streams
+          </p>
+          {isLoadingMore ? (
+            <p className="text-body-sm text-on-surface-variant">Loading more…</p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void loadMore()}
+              className="rounded-lg border border-outline-variant bg-surface px-lg py-sm text-body-sm font-body-sm text-on-surface transition-colors hover:border-primary hover:text-primary"
+            >
+              Load more streams
+            </button>
+          )}
         </div>
       )}
     </div>
