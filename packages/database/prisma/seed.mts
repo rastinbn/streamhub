@@ -390,6 +390,8 @@ async function main(): Promise<void> {
           category: u.channelCategory,
           description: u.bio,
           followersCount: followCounts.get(channelId) ?? 0,
+          avatar: AVATAR(u.username),
+          banner: BANNER(u.username),
         },
         create: {
           id: channelId,
