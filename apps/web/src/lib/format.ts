@@ -32,3 +32,11 @@ export function formatDuration(startedAt: string | null | undefined, endedAt?: s
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${pad(h)}:${pad(m)}:${pad(s)}`;
 }
+
+/** Short, medium-weight date for admin tables (e.g. "Sep 10, 2026"). */
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}

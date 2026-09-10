@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, channelsApi, streamsApi, usersApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { emitDataChange, useRouteRefreshKey } from '@/lib/data-sync';
 import type { ChannelPublic, StreamPublic, StreamStatusView } from '@streamhub/types';
 
 const STATUS_POLL_MS = 15_000;
@@ -20,6 +21,8 @@ export function useWatchStream(
   setFollowed: (shouldFollow: boolean) => Promise<boolean>;
 } {
   const { accessToken } = useAuth();
+  // Re-fetch when the page is visited again so nothing stays stale.
+  const routeKey = useRouteRefreshKey();
   const [stream, setStream] = useState<StreamPublic | null>(null);
   const [channel, setChannel] = useState<ChannelPublic | null>(null);
   const [status, setStatus] = useState<StreamStatusView | null>(null);
@@ -81,7 +84,7 @@ export function useWatchStream(
       cancelled = true;
       clearInterval(id);
     };
-  }, [load, streamId]);
+  }, [load, streamId, routeKey]);
 
   const setFollowed = useCallback(
     async (shouldFollow: boolean): Promise<boolean> => {
@@ -95,6 +98,7 @@ export function useWatchStream(
           setChannel((c) => (c ? { ...c, followersCount: Math.max(0, c.followersCount - 1) } : c));
         }
         setIsFollowing(shouldFollow);
+        emitDataChange('follows');
         return true;
       } catch {
         return false;

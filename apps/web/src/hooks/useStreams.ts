@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { streamsApi, type StreamListQuery } from '@/lib/api';
+import { useRouteRefreshKey } from '@/lib/data-sync';
 import type { StreamPublic } from '@streamhub/types';
 
 interface UseStreamsOptions {
@@ -22,6 +23,8 @@ export function useStreams(
   options: UseStreamsOptions = {},
 ): UseStreamsResult {
   const { pollInterval = 60_000, liveOnly = false } = options;
+  // Refresh whenever the page is visited again so lists never show stale data.
+  const routeKey = useRouteRefreshKey();
   const [streams, setStreams] = useState<StreamPublic[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -61,7 +64,7 @@ export function useStreams(
     if (!pollIntervalRef.current) return;
     const id = setInterval(() => void refetch(), pollIntervalRef.current);
     return () => clearInterval(id);
-  }, [refetch, queryKey]);
+  }, [refetch, queryKey, routeKey]);
 
   return { streams, total, isLoading, isError, error, refetch };
 }

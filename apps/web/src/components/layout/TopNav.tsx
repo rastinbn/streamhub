@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, Search, Plus, Video, Bell, X } from 'lucide-react';
+import { Menu, Search, Plus, Video, Bell, X, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { isSafeImageSrc } from '@/lib/security';
 
 interface TopNavProps {
   onMenuClick: () => void;
@@ -98,14 +99,17 @@ export default function TopNav({ onMenuClick, menuOpen }: TopNavProps) {
           {mobileSearchOpen ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
         </button>
 
-        <button className="hidden items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-primary-fixed active:scale-[0.98] sm:flex">
+        <Link
+          href="/create"
+          className="hidden items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-primary-fixed active:scale-[0.98] sm:flex"
+        >
           <Plus className="h-4 w-4" />
           Create
-        </button>
+        </Link>
 
-        <button aria-label="Go live" className={iconBtn}>
+        <Link href="/create" aria-label="Go live" className={iconBtn}>
           <Video className="h-5 w-5" />
-        </button>
+        </Link>
 
         <button aria-label="Notifications, 1 unread" className={`${iconBtn} relative`}>
           <Bell className="h-5 w-5" />
@@ -140,7 +144,7 @@ export default function TopNav({ onMenuClick, menuOpen }: TopNavProps) {
               aria-expanded={profileMenuOpen}
               className="rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-95"
             >
-              {user.avatar ? (
+              {user.avatar && isSafeImageSrc(user.avatar) ? (
                 // Plain <img>, not next/image: avatar URLs are user-supplied
                 // (see profile settings) so the fixed set of allow-listed
                 // remote hosts next/image requires doesn't apply here.
@@ -150,6 +154,8 @@ export default function TopNav({ onMenuClick, menuOpen }: TopNavProps) {
                   alt="User avatar"
                   width={32}
                   height={32}
+                  loading="lazy"
+                  decoding="async"
                   className="h-8 w-8 rounded-full border border-outline-variant object-cover transition-shadow hover:ring-2 hover:ring-primary"
                 />
               ) : (
@@ -179,6 +185,16 @@ export default function TopNav({ onMenuClick, menuOpen }: TopNavProps) {
                 >
                   Profile settings
                 </Link>
+                {user.role === 'ADMIN' && (
+                  <Link
+                    href="/admin"
+                    onClick={() => setProfileMenuOpen(false)}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-on-surface-variant transition-colors hover:bg-surface-variant/50 hover:text-on-surface"
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    Admin panel
+                  </Link>
+                )}
                 <button
                   onClick={handleLogout}
                   className="block w-full px-4 py-2.5 text-left text-sm text-on-surface-variant transition-colors hover:bg-surface-variant/50 hover:text-on-surface"

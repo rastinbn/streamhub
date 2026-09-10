@@ -17,6 +17,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { CategoriesModule } from './modules/categories/categories.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
     NotificationsModule,
     ModerationModule,
     AnalyticsModule,
+    AdminModule,
   ],
   providers: [
     {

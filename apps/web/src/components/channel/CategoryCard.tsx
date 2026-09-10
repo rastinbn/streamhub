@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Radio } from 'lucide-react';
 
 export interface CategoryCardProps {
@@ -7,19 +8,20 @@ export interface CategoryCardProps {
   liveChannels: string;
   image: string;
   alt: string;
+  /** When set, the whole card becomes a link (e.g. /categories/{slug}) */
+  href?: string;
 };
 
 
-export default function CategoryCard({ name, badge, viewers, liveChannels, image, alt }: CategoryCardProps) {
-  return (
-    <a
-      href="#"
-      className="group block relative rounded-xl overflow-hidden bg-surface border border-outline-variant/30 hover:border-primary/50 hover:bg-surface-variant transition-all duration-300 shadow-sm hover:shadow-lg hover:shadow-primary/10 hover:-translate-y-1"
-    >
+export default function CategoryCard({ name, badge, viewers, liveChannels, image, alt, href }: CategoryCardProps) {
+  const card = (
+    <div className="group relative block rounded-xl overflow-hidden bg-surface border border-outline-variant/30 hover:border-primary/50 hover:bg-surface-variant transition-all duration-300 shadow-sm hover:shadow-lg hover:shadow-primary/10 hover:-translate-y-1 h-full">
       <div className="aspect-[3/4] relative w-full overflow-hidden">
         <img
           src={image}
           alt={alt}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
 
@@ -47,6 +49,11 @@ export default function CategoryCard({ name, badge, viewers, liveChannels, image
           {liveChannels}
         </div>
       </div>
-    </a>
+    </div>
   );
+
+  if (!href) {
+    return card;
+  }
+  return <Link href={href}>{card}</Link>;
 }

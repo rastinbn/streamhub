@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Home, Compass, LayoutGrid, Bell, Settings, CircleHelp } from 'lucide-react';
+import { Home, Compass, LayoutGrid, Bell, Settings, CircleHelp, ShieldCheck } from 'lucide-react';
 import FollowedChannels from '@/components/channel/FollowedChannels';
+import { useAuth } from '@/lib/auth-context';
 
 export type NavItem = {
   href: string;
@@ -32,6 +33,7 @@ interface SideBarProps {
 
 export default function Sidebar({ open, onClose }: SideBarProps) {
   const pathname = usePathname();
+  const { user } = useAuth();
 
   const isActive = useCallback(
     (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href)),
@@ -99,6 +101,13 @@ export default function Sidebar({ open, onClose }: SideBarProps) {
         {renderItems(NAV_ITEMS)}
 
         <FollowedChannels />
+
+        {user?.role === 'ADMIN' && (
+          <div>
+            <p className="px-5 pb-1 pt-3 text-label-sm uppercase tracking-wide text-on-surface-variant">Admin</p>
+            {renderItems([{ href: '/admin', label: 'Admin panel', icon: ShieldCheck }])}
+          </div>
+        )}
 
         <div className="mt-auto border-t border-outline-variant/30 px-2 pt-4">
           {renderItems(FOOTER_ITEMS)}

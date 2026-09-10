@@ -1,16 +1,24 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { Suspense, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { safeRedirect } from '@/lib/security';
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]+$/;
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { register } = useAuth();
+
+  const redirectRaw = searchParams.get('redirect');
+  const redirectTo = safeRedirect(redirectRaw);
+  const crossHref = redirectRaw
+    ? `/login?redirect=${encodeURIComponent(redirectRaw)}`
+    : '/login';
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -53,7 +61,7 @@ export default function RegisterPage() {
     setSubmitting(true);
     try {
       await register({ username, email, password, confirmPassword });
-      router.push('/');
+      router.push(redirectTo);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
     } finally {
@@ -153,11 +161,19 @@ export default function RegisterPage() {
 
         <p className="mt-6 text-center text-body-sm text-on-surface-variant">
           Already have an account?{' '}
-          <Link href="/login" className="font-semibold text-primary hover:underline">
+          <Link href={crossHref} className="font-semibold text-primary hover:underline">
             Log in
           </Link>
         </p>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
   );
 }

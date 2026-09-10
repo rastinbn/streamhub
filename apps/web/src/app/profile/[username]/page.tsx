@@ -34,6 +34,8 @@ export default async function UserProfilePage({
           alt={`${displayName}'s avatar`}
           width={96}
           height={96}
+          loading="lazy"
+          decoding="async"
           className="h-24 w-24 shrink-0 rounded-full border-2 border-outline-variant object-cover"
         />
         <div className="min-w-0">

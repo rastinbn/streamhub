@@ -5,6 +5,7 @@ import { User, Mail, ShieldCheck, Bell, Monitor, LogOut } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useUpdateProfile } from '@/hooks/useUpdateProfile';
 import { useRequireAuth } from '@/lib/use-require-auth';
+import { isSafeImageSrc } from '@/lib/security';
 import { useRouter } from 'next/navigation';
 
 function SectionCard({
@@ -51,11 +52,24 @@ export default function SettingsPage() {
   const [notifyEntertainment, setNotifyEntertainment] = useState(false);
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null);
 
+  // user arrives asynchronously (auth rehydration) — mirror it into the form
+  // so the fields populate once the session is known.
+  useEffect(() => {
+    if (!user) return;
+    setDisplayName(user.displayName ?? '');
+    setBio(user.bio ?? '');
+    setAvatar(user.avatar ?? '');
+  }, [user]);
+
   const resolvedLoading = loading || (user === null && !loading ? false : loading);
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
     setMessage(null);
+    if (avatar && !isSafeImageSrc(avatar)) {
+      setMessage({ type: 'error', text: 'Avatar URL must be an http(s) URL or a local path.' });
+      return;
+    }
     const result = await update({ displayName, bio, avatar: avatar || undefined });
     if (result.ok) {
       setMessage({ type: 'ok', text: 'Profile updated.' });

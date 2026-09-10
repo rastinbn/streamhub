@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import AppShell from '@/components/layout/AppShell';
+import RouteChangeEmitter from '@/components/layout/RouteChangeEmitter';
 import { AuthProvider } from '@/lib/auth-context';
 import './globals.css';
 
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={inter.variable}>
       <body>
         <AuthProvider>
+          <RouteChangeEmitter />
           <AppShell>{children}</AppShell>
         </AuthProvider>
       </body>

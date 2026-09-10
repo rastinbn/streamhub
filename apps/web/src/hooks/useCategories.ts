@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { categoriesApi } from '@/lib/api';
+import { useRouteRefreshKey } from '@/lib/data-sync';
 import type { CategoryPublic } from '@streamhub/types';
 
 export function useCategories(): {
@@ -9,6 +10,7 @@ export function useCategories(): {
   error: string | null;
   refetch: () => Promise<void>;
 } {
+  const routeKey = useRouteRefreshKey();
   const [categories, setCategories] = useState<CategoryPublic[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
@@ -30,7 +32,7 @@ export function useCategories(): {
 
   useEffect(() => {
     void refetch();
-  }, [refetch]);
+  }, [refetch, routeKey]);
 
   return { categories, isLoading, isError, error, refetch };
 }

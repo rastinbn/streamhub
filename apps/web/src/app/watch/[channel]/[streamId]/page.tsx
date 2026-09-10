@@ -1,9 +1,10 @@
 'use client';
 
 import { useParams, useRouter, notFound } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import VideoPlayer from '@/components/watch/VideoPlayer';
 import StreamInfo from '@/components/watch/StreamInfo';
-import ChatSidebar from '@/components/watch/ChatSidebar';
+import WatchGate from '@/components/watch/WatchGate';
 import type { WatchStream } from '@/components/watch/types';
 import { useWatchStream } from '@/hooks/useWatchStream';
 import { useWatchChat } from '@/hooks/useWatchChat';
@@ -18,14 +19,27 @@ import {
   UNTITLED,
 } from '@/lib/placeholders';
 
+// Chat spawns a socket connection on mount, so keep it out of the initial
+// chunk and only mount it client-side once the player region has painted.
+const ChatSidebar = dynamic(() => import('@/components/watch/ChatSidebar'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center rounded-xl border border-outline-variant/30 bg-surface-container-low p-lg text-on-surface-variant">
+      <p className="text-label-sm font-label-sm uppercase tracking-wide">Loading chat…</p>
+    </div>
+  ),
+});
+
 export default function WatchPage() {
   const params = useParams<{ channel: string; streamId: string }>();
   const router = useRouter();
-  const { accessToken } = useAuth();
+  const { user, loading, accessToken } = useAuth();
   const { stream, channel, status, isFollowing, isLoading, isError, error, isNotFound, setFollowed } =
     useWatchStream(params.streamId, params.channel);
   const chat = useWatchChat(params.streamId);
-  useViewerHeartbeat(params.streamId, stream?.status === 'LIVE' && !isLoading);
+  // Signed-out visitors don't send presence pings — only authenticated
+  // viewers count toward a stream's live viewer number.
+  useViewerHeartbeat(params.streamId, stream?.status === 'LIVE' && !isLoading && !!user && !loading);
 
   async function toggleFollow() {
     if (!stream || !accessToken) {
@@ -53,6 +67,12 @@ export default function WatchPage() {
         </p>
       </div>
     );
+  }
+
+  // Watching requires an account: signed-out visitors get the login/signup
+  // gate in place of the player and chat.
+  if (!user) {
+    return <WatchGate returnTo={`/watch/${params.channel}/${params.streamId}`} />;
   }
 
   const tags = Array.from(

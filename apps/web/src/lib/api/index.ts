@@ -10,3 +10,9 @@ export type { StreamListQuery } from './streams';
 export { categoriesApi } from './categories';
 export type { CategoryListQuery } from './categories';
 export { analyticsApi } from './analytics';
+export { adminApi } from './admin';
+export type {
+  AdminUserListQuery,
+  AdminChannelListQuery,
+  AdminStreamListQuery,
+} from './admin';

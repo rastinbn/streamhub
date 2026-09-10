@@ -106,6 +106,7 @@ const USERS: Array<{
   bio: string;
   channelCategory: string;
   password?: string;
+  banner?: string;
 }> = [
   { id: 'usr_ninja', username: 'ninja', email: 'ninja@example.com', displayName: 'NinjaVibes', role: 'STREAMER', bio: 'Late night talks and good vibes.', channelCategory: 'Just Chatting' },
   { id: 'usr_luna', username: 'luna', email: 'luna@example.com', displayName: 'LunaPlays', role: 'STREAMER', bio: 'Speedruns and PB attempts.', channelCategory: 'Gaming' },
@@ -115,7 +116,14 @@ const USERS: Array<{
   { id: 'usr_rex', username: 'rex', email: 'rex@example.com', displayName: 'RexTheWanderer', role: 'USER', bio: 'Offline adventurer.', channelCategory: 'Travel' },
   { id: 'usr_mika', username: 'mika', email: 'mika@example.com', displayName: 'MikaMod', role: 'MODERATOR', bio: 'Keeping chat civil since day one.', channelCategory: 'Just Chatting' },
   { id: 'usr_zed', username: 'zed', email: 'zed@example.com', displayName: 'ZedOps', role: 'ADMIN', bio: 'Runs the servers, occasionally streams.', channelCategory: 'Science & Tech' },
-  { id: 'usr_mammad', username: 'mammad', email: 'mammad@gmail.com', displayName: 'Mammad', role: 'STREAMER', bio: 'I stream games and rank grinds — come say hi.', channelCategory: 'Gaming', password: '1234567890' },
+  { id: 'usr_mammad', username: 'mammad', email: 'mammad@gmail.com', displayName: 'Mammad', role: 'ADMIN', bio: 'I stream games and rank grinds — come say hi.', channelCategory: 'Gaming', password: '1234567890' },
+  // New streamers so every category has live + finished streams with
+  // thumbnails that match what they actually broadcast.
+  { id: 'usr_inks', username: 'inks', email: 'inks@example.com', displayName: 'Inkwell', role: 'STREAMER', bio: 'Sketchbooks, ink and digital painting.', channelCategory: 'Art', banner: CATEGORY_THUMB('art') },
+  { id: 'usr_matchday', username: 'matchday', email: 'matchday@example.com', displayName: 'MatchdayMia', role: 'STREAMER', bio: 'Watch parties, pre-match build-up and post-match meltdowns.', channelCategory: 'Sports', banner: CATEGORY_THUMB('sports') },
+  { id: 'usr_chef', username: 'chef', email: 'chef@example.com', displayName: 'ChefPixel', role: 'STREAMER', bio: 'Cooking chaos from a tiny kitchen, streamed live.', channelCategory: 'Food & Drink', banner: CATEGORY_THUMB('food-drink') },
+  { id: 'usr_sofa', username: 'sofa', email: 'sofa@example.com', displayName: 'SofaCine', role: 'STREAMER', bio: 'Rewatching everything and over-analysing it.', channelCategory: 'Movies & TV', banner: CATEGORY_THUMB('movies-tv') },
+  { id: 'usr_flex', username: 'flex', email: 'flex@example.com', displayName: 'FlexFleur', role: 'STREAMER', bio: 'Mobility, yoga and wellness — sweat optional.', channelCategory: 'Fitness', banner: CATEGORY_THUMB('fitness') },
 ];
 
 // ---------------------------------------------------------------------------
@@ -152,6 +160,19 @@ const STREAMS: SeedStream[] = [
   { id: 'stream_end_kai_2', channelId: 'ch_kai', title: 'Vinyl digging stream', category: 'Music', status: 'ENDED', startedAt: daysAgo(9, 21), endedAt: daysAgo(9, 18), viewerCount: 0 },
   { id: 'stream_end_ada_1', channelId: 'ch_ada', title: 'Deploying at midnight — why do we do this', category: 'Science & Tech', status: 'ENDED', startedAt: daysAgo(6, 1.8), endedAt: daysAgo(5, 22), viewerCount: 0 },
   { id: 'stream_end_ada_2', channelId: 'ch_ada', title: 'Writing a database from scratch', category: 'Science & Tech', status: 'ENDED', startedAt: daysAgo(12, 19.5), endedAt: daysAgo(12, 16.5), viewerCount: 0 },
+  // --- New streamers: remaining categories covered ---
+  { id: 'stream_live_inks', channelId: 'ch_inks', title: 'Inktober warm-up: foxes and swords', category: 'Art', status: 'LIVE', startedAt: minutesAgo(35), viewerCount: 41 },
+  { id: 'stream_live_matchday', channelId: 'ch_matchday', title: 'Champions League watch party + chatter', category: 'Sports', status: 'LIVE', startedAt: hoursAgo(1.5), viewerCount: 156 },
+  { id: 'stream_live_chef', channelId: 'ch_chef', title: '30-minute weeknight pasta from scratch', category: 'Food & Drink', status: 'LIVE', startedAt: minutesAgo(50), viewerCount: 73 },
+  { id: 'stream_live_rex', channelId: 'ch_rex', title: 'Backpacking through the Alps, day 3', category: 'Travel', status: 'LIVE', startedAt: hoursAgo(2.6), viewerCount: 58 },
+  { id: 'stream_live_sofa', channelId: 'ch_sofa', title: 'Series finale rewatch party', category: 'Movies & TV', status: 'LIVE', startedAt: minutesAgo(15), viewerCount: 112 },
+  { id: 'stream_live_flex', channelId: 'ch_flex', title: 'Morning mobility and coffee', category: 'Fitness', status: 'LIVE', startedAt: minutesAgo(40), viewerCount: 36 },
+  { id: 'stream_end_inks_1', channelId: 'ch_inks', title: 'Digital painting: lighting practice', category: 'Art', status: 'ENDED', startedAt: daysAgo(3, 20), endedAt: daysAgo(3, 17), viewerCount: 0 },
+  { id: 'stream_end_matchday_1', channelId: 'ch_matchday', title: 'Derby-day pre-match build-up', category: 'Sports', status: 'ENDED', startedAt: daysAgo(5, 19), endedAt: daysAgo(5, 16), viewerCount: 0 },
+  { id: 'stream_end_chef_1', channelId: 'ch_chef', title: 'Tasting weird mystery snacks', category: 'Food & Drink', status: 'ENDED', startedAt: daysAgo(2, 17.5), endedAt: daysAgo(2, 14.5), viewerCount: 0 },
+  { id: 'stream_end_rex_1', channelId: 'ch_rex', title: 'Trip planning: maps and ticks', category: 'Travel', status: 'ENDED', startedAt: daysAgo(7, 18), endedAt: daysAgo(7, 15), viewerCount: 0 },
+  { id: 'stream_end_sofa_1', channelId: 'ch_sofa', title: 'Director commentary classic heist', category: 'Movies & TV', status: 'ENDED', startedAt: daysAgo(4, 20), endedAt: daysAgo(4, 17), viewerCount: 0 },
+  { id: 'stream_end_flex_1', channelId: 'ch_flex', title: '30-day challenge: week two', category: 'Fitness', status: 'ENDED', startedAt: daysAgo(6, 15), endedAt: daysAgo(6, 12), viewerCount: 0 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -185,6 +206,19 @@ const FOLLOWS: Array<{ followerId: string; channelId: string }> = [
   { followerId: 'usr_mika', channelId: 'ch_mammad' },
   { followerId: 'usr_mammad', channelId: 'ch_luna' },
   { followerId: 'usr_mammad', channelId: 'ch_ada' },
+  // the new streamers — everyone gets a few followers and follows back
+  { followerId: 'usr_nova', channelId: 'ch_inks' },
+  { followerId: 'usr_nova', channelId: 'ch_sofa' },
+  { followerId: 'usr_rex', channelId: 'ch_chef' },
+  { followerId: 'usr_rex', channelId: 'ch_flex' },
+  { followerId: 'usr_rex', channelId: 'ch_matchday' },
+  { followerId: 'usr_mika', channelId: 'ch_matchday' },
+  { followerId: 'usr_mika', channelId: 'ch_sofa' },
+  { followerId: 'usr_zed', channelId: 'ch_flex' },
+  { followerId: 'usr_mammad', channelId: 'ch_matchday' },
+  { followerId: 'usr_mammad', channelId: 'ch_inks' },
+  { followerId: 'usr_mammad', channelId: 'ch_chef' },
+  { followerId: 'usr_mammad', channelId: 'ch_sofa' },
 ];
 
 const CHAT_LINES = [
@@ -366,7 +400,7 @@ async function main(): Promise<void> {
           ownerId: u.id,
           followersCount: followCounts.get(channelId) ?? 0,
           avatar: AVATAR(u.username),
-          banner: BANNER(u.username),
+          banner: u.banner ?? BANNER(u.username),
         },
       }),
     );

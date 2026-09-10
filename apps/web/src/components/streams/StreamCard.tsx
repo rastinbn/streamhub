@@ -36,6 +36,8 @@ export default function StreamCard({
           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           src={thumbnailUrl}
           alt={thumbnailAlt}
+          loading="lazy"
+          decoding="async"
         />
         {isLive && (
           <div className="absolute top-sm left-sm bg-live text-on-live font-label-sm text-label-sm px-2 py-0.5 rounded uppercase tracking-wider z-10 shadow-sm">
@@ -53,6 +55,8 @@ export default function StreamCard({
             className="w-full h-full rounded-full object-cover border-2 border-surface-container-lowest relative z-10"
             src={avatarUrl}
             alt={avatarAlt}
+            loading="lazy"
+            decoding="async"
           />
           {isLive && (
             <div className="absolute inset-0 bg-live rounded-full blur-[2px] -z-0" />

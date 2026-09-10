@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, channelsApi, streamsApi, usersApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { emitDataChange, useRouteRefreshKey } from '@/lib/data-sync';
 import type { ChannelPublic, PaginatedResult, StreamPublic } from '@streamhub/types';
 
 export function useChannelBySlug(slug: string | undefined): {
@@ -16,6 +17,8 @@ export function useChannelBySlug(slug: string | undefined): {
   setFollowed: (shouldFollow: boolean) => Promise<boolean>;
 } {
   const { accessToken } = useAuth();
+  // Re-fetch when the page is visited again so nothing stays stale.
+  const routeKey = useRouteRefreshKey();
   const [channel, setChannel] = useState<ChannelPublic | null>(null);
   const [isLive, setIsLive] = useState(false);
   const [liveStream, setLiveStream] = useState<StreamPublic | null>(null);
@@ -70,7 +73,7 @@ export function useChannelBySlug(slug: string | undefined): {
 
   useEffect(() => {
     void refetch();
-  }, [refetch]);
+  }, [refetch, routeKey]);
 
   const setFollowed = useCallback(
     async (shouldFollow: boolean): Promise<boolean> => {
@@ -85,6 +88,7 @@ export function useChannelBySlug(slug: string | undefined): {
           setIsFollowing(false);
           setChannel((c) => (c ? { ...c, followersCount: Math.max(0, c.followersCount - 1) } : c));
         }
+        emitDataChange('follows');
         return true;
       } catch {
         return false;

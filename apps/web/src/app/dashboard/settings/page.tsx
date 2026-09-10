@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useUpdateProfile } from '@/hooks/useUpdateProfile';
 import { useRequireAuth } from '@/lib/use-require-auth';
+import { isSafeImageSrc } from '@/lib/security';
 
 export default function SettingsPage() {
   const { user, loading } = useRequireAuth();
@@ -27,6 +28,10 @@ export default function SettingsPage() {
 
     setError(null);
     setSuccess(false);
+    if (avatar && !isSafeImageSrc(avatar)) {
+      setError('Avatar URL must be an http(s) URL or a local path.');
+      return;
+    }
     const result = await update({
       displayName: displayName || undefined,
       avatar: avatar || undefined,

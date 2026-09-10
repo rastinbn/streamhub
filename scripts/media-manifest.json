@@ -1,0 +1,37 @@
+{
+  "streams": [
+    { "id": "stream_live_ninja", "cat": "just-chatting", "title": "Late Night Just Chatting — come hang out" },
+    { "id": "stream_live_luna", "cat": "gaming", "title": "Hades speedrun — PB attempt #47" },
+    { "id": "stream_live_kai", "cat": "music", "title": "Chill beats to study/relax to" },
+    { "id": "stream_live_ada", "cat": "science-tech", "title": "Building an analytics dashboard live" },
+    { "id": "stream_live_mammad", "cat": "gaming", "title": "Rank grind — Valorant ranked climb" },
+    { "id": "stream_end_ninja_1", "cat": "just-chatting", "title": "Weekend recap + Q&A" },
+    { "id": "stream_end_ninja_2", "cat": "just-chatting", "title": "Reacting to community clips" },
+    { "id": "stream_end_ninja_3", "cat": "just-chatting", "title": "Cozy morning chat" },
+    { "id": "stream_end_luna_1", "cat": "gaming", "title": "Celeste 100% attempt — almost there" },
+    { "id": "stream_end_luna_2", "cat": "gaming", "title": "New game Friday: random roulette" },
+    { "id": "stream_end_kai_1", "cat": "music", "title": "Producing a beat from scratch" },
+    { "id": "stream_end_kai_2", "cat": "music", "title": "Vinyl digging stream" },
+    { "id": "stream_end_ada_1", "cat": "science-tech", "title": "Deploying at midnight — why do we do this" },
+    { "id": "stream_end_ada_2", "cat": "science-tech", "title": "Writing a database from scratch" },
+    { "id": "stream_live_inks", "cat": "art", "title": "Inktober warm-up: foxes and swords" },
+    { "id": "stream_live_matchday", "cat": "sports", "title": "Champions League watch party + chatter" },
+    { "id": "stream_live_chef", "cat": "food-drink", "title": "30-minute weeknight pasta from scratch" },
+    { "id": "stream_live_rex", "cat": "travel", "title": "Backpacking through the Alps, day 3" },
+    { "id": "stream_live_sofa", "cat": "movies-tv", "title": "Series finale rewatch party" },
+    { "id": "stream_live_flex", "cat": "fitness", "title": "Morning mobility and coffee" },
+    { "id": "stream_end_inks_1", "cat": "art", "title": "Digital painting: lighting practice" },
+    { "id": "stream_end_matchday_1", "cat": "sports", "title": "Derby-day pre-match build-up" },
+    { "id": "stream_end_chef_1", "cat": "food-drink", "title": "Tasting weird mystery snacks" },
+    { "id": "stream_end_rex_1", "cat": "travel", "title": "Trip planning: maps and ticks" },
+    { "id": "stream_end_sofa_1", "cat": "movies-tv", "title": "Director commentary classic heist" },
+    { "id": "stream_end_flex_1", "cat": "fitness", "title": "30-day challenge: week two" }
+  ],
+  "avatars": {
+    "inks": "art",
+    "matchday": "sports",
+    "chef": "food-drink",
+    "sofa": "movies-tv",
+    "flex": "fitness"
+  }
+}

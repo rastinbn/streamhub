@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { usersApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useDataRefreshKey, useRouteRefreshKey } from '@/lib/data-sync';
 import type { ChannelPublic } from '@streamhub/types';
 
 export function useFollowedChannels(): {
@@ -10,6 +11,9 @@ export function useFollowedChannels(): {
   refetch: () => Promise<void>;
 } {
   const { accessToken } = useAuth();
+  // Refresh on every revisit and whenever follow state changes anywhere.
+  const routeKey = useRouteRefreshKey();
+  const followsKey = useDataRefreshKey('follows');
   const [channels, setChannels] = useState<ChannelPublic[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -29,7 +33,7 @@ export function useFollowedChannels(): {
   useEffect(() => {
     setIsLoading(true);
     refetch().finally(() => setIsLoading(false));
-  }, [refetch]);
+  }, [refetch, routeKey, followsKey]);
 
   return { channels, isLoading, isSupported: !!accessToken, refetch };
 }

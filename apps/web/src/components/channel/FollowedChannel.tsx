@@ -19,6 +19,8 @@ export default function FollowedChannel({ id, name, avatarUrl, avatarAlt, status
             className="w-full h-full rounded-full object-cover"
             src={avatarUrl}
             alt={avatarAlt}
+            loading="lazy"
+            decoding="async"
           />
           <div
             className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-surface-container-low ${

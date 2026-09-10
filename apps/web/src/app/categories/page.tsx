@@ -16,6 +16,7 @@ function toCard(category: CategoryPublic): CategoryCardProps {
     liveChannels: MISSING_NAME,
     image: category.thumbnail ?? PLACEHOLDER_THUMBNAIL,
     alt: PLACEHOLDER_ALT,
+    href: category.slug ? `/categories/${category.slug}` : undefined,
   };
 }
 
