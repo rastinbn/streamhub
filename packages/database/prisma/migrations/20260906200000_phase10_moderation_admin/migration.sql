@@ -3,6 +3,25 @@
 -- Guarded (IF NOT EXISTS / DO blocks) so this migration is safe both on
 -- databases that already ran it and on ones that never have.
 
+-- CreateEnum — must precede any statement referencing them.
+DO $$ BEGIN
+    CREATE TYPE "ReportTargetType" AS ENUM ('USER', 'CHANNEL', 'STREAM', 'VOD');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE "ReportReason" AS ENUM ('SPAM', 'HARASSMENT', 'INAPPROPRIATE_CONTENT', 'COPYRIGHT', 'OTHER');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE "ReportStatus" AS ENUM ('PENDING', 'REVIEWING', 'RESOLVED', 'DISMISSED');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
+
 -- AlterTable — moderation state columns
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "bannedAt" TIMESTAMP(3);
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "banReason" TEXT;
@@ -39,25 +58,6 @@ CREATE TABLE IF NOT EXISTS "audit_logs" (
 
     CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id")
 );
-
--- CreateEnum (must precede any table that references them; each guarded)
-DO $$ BEGIN
-    CREATE TYPE "ReportTargetType" AS ENUM ('USER', 'CHANNEL', 'STREAM', 'VOD');
-EXCEPTION
-    WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-    CREATE TYPE "ReportReason" AS ENUM ('SPAM', 'HARASSMENT', 'INAPPROPRIATE_CONTENT', 'COPYRIGHT', 'OTHER');
-EXCEPTION
-    WHEN duplicate_object THEN NULL;
-END $$;
-
-DO $$ BEGIN
-    CREATE TYPE "ReportStatus" AS ENUM ('PENDING', 'REVIEWING', 'RESOLVED', 'DISMISSED');
-EXCEPTION
-    WHEN duplicate_object THEN NULL;
-END $$;
 
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "reports_status_createdAt_idx" ON "reports"("status", "createdAt");
