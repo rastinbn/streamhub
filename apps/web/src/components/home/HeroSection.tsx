@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import Link from 'next/link';
 import { Users, Play } from 'lucide-react';
 
 export interface HeroData {
@@ -11,10 +12,12 @@ export interface HeroData {
   thumbnailAlt: string;
   avatarUrl: string;
   avatarAlt: string;
+  /** When set, the whole hero becomes a link (e.g. a live watch page). */
+  href?: string;
 }
 
 export default function HeroSection({ hero }: { hero: HeroData }) {
-  return (
+  const section = (
     <section className="relative w-full rounded-xl overflow-hidden bg-surface-container border border-surface-container-high group cursor-pointer shadow-lg">
       {/* 16:9 → 21:9 → 24:9 */}
       <div className="relative w-full aspect-video md:aspect-[21/9] lg:aspect-[24/9] bg-surface-container-high overflow-hidden">
@@ -83,15 +86,20 @@ export default function HeroSection({ hero }: { hero: HeroData }) {
           </div>
 
           {/* Watch button */}
-          <button
-            type="button"
-            className="w-full md:w-auto bg-primary text-on-primary font-headline-md px-6 py-3 rounded-lg font-bold hover:bg-primary-container hover:text-on-primary-container transition-colors shadow-[0_0_20px_rgba(213,186,255,0.2)] active:scale-95 shrink-0 flex items-center justify-center gap-2"
-          >
+          <span className="w-full md:w-auto bg-primary text-on-primary font-headline-md px-6 py-3 rounded-lg font-bold hover:bg-primary-container hover:text-on-primary-container transition-colors shadow-[0_0_20px_rgba(213,186,255,0.2)] active:scale-95 shrink-0 flex items-center justify-center gap-2">
             <Play className="w-5 h-5 fill-current" />
             Watch Now
-          </button>
+          </span>
         </div>
       </div>
     </section>
+  );
+
+  return hero.href ? (
+    <Link href={hero.href} className="block">
+      {section}
+    </Link>
+  ) : (
+    section
   );
 }

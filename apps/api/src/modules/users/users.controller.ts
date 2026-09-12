@@ -1,10 +1,14 @@
-import { Body, Controller, Get, Param, Patch, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { UsersService } from './users.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
 import type { RequestWithUser } from '../../common/guards/jwt-auth.guard';
+import type { AuthResponse } from '@streamhub/types';
+import { toPublicUser } from '../../common/mappers';
+import { TokenService } from '../auth/token.service';
 import { ChannelsService } from '../channels/channels.service';
 import { FollowsService } from '../follows/follows.service';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
@@ -13,9 +17,29 @@ import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 export class UsersController {
   constructor(
     private readonly users: UsersService,
+    private readonly tokens: TokenService,
     private readonly channels: ChannelsService,
     private readonly follows: FollowsService,
   ) {}
+
+  /**
+   * Upgrades the caller to a STREAMER (idempotent) and returns a fresh token
+   * pair. The JWT guard trusts the role embedded in the access token, so the
+   * role flip is only visible to the client once the old token is replaced.
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('USER', 'STREAMER', 'MODERATOR', 'ADMIN')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('me/become-streamer')
+  async becomeStreamer(@Req() req: RequestWithUser): Promise<{ success: true; data: AuthResponse }> {
+    const user = await this.users.becomeStreamer(req.user.sub);
+    const tokens = await this.tokens.signAuthTokens({
+      id: user.id,
+      username: user.username,
+      role: user.role,
+    });
+    return { success: true, data: { user: toPublicUser(user), ...tokens } };
+  }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('USER', 'STREAMER', 'MODERATOR', 'ADMIN')

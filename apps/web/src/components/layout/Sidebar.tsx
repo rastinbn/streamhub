@@ -4,9 +4,22 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Home, Compass, LayoutGrid, Bell, Settings, CircleHelp, ShieldCheck } from 'lucide-react';
+import {
+  Home,
+  Compass,
+  LayoutGrid,
+  Bell,
+  Settings,
+  CircleHelp,
+  ShieldCheck,
+  LayoutDashboard,
+  Radio,
+  BarChart3,
+  Clapperboard,
+} from 'lucide-react';
 import FollowedChannels from '@/components/channel/FollowedChannels';
 import { useAuth } from '@/lib/auth-context';
+import { canStream } from '@/lib/roles';
 
 export type NavItem = {
   href: string;
@@ -99,6 +112,21 @@ export default function Sidebar({ open, onClose }: SideBarProps) {
           ${open ? 'translate-x-0' : '-translate-x-full'}`}
       >
         {renderItems(NAV_ITEMS)}
+
+        {user && canStream(user.role) && (
+          <div>
+            <p className="px-5 pb-1 pt-3 text-label-sm uppercase tracking-wide text-on-surface-variant">
+              Creator
+            </p>
+            {renderItems([
+              { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+              { href: '/create', label: 'Go live', icon: Radio },
+              { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
+              { href: '/dashboard/content', label: 'Content', icon: Clapperboard },
+              { href: '/dashboard/settings', label: 'Creator settings', icon: Settings },
+            ])}
+          </div>
+        )}
 
         <FollowedChannels />
 

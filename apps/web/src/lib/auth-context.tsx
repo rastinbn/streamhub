@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { UserPublic } from '@streamhub/types';
-import { ApiError, authApi } from './api';
+import { ApiError, authApi, usersApi } from './api';
 
 const REFRESH_TOKEN_STORAGE_KEY = 'streamhub.refreshToken';
 
@@ -32,6 +32,8 @@ interface AuthContextValue {
   /** Re-sends the verification email for an account (silently succeeds). */
   resendVerification: (email: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Upgrades the account to STREAMER and persists the fresh session. */
+  becomeStreamer: () => Promise<void>;
   /** Re-fetches the current user (e.g. after updating the profile). */
   refreshUser: () => Promise<void>;
   setUser: (user: UserPublic) => void;
@@ -119,6 +121,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearSession();
   }, [accessToken, clearSession]);
 
+  const becomeStreamer = useCallback(async () => {
+    if (!accessToken) throw new ApiError('Not signed in', 'UNAUTHENTICATED', 401);
+    const res = await usersApi.becomeStreamer(accessToken);
+    persistSession(res.accessToken, res.refreshToken, res.user);
+  }, [accessToken, persistSession]);
+
   const refreshUser = useCallback(async () => {
     if (!accessToken) return;
     try {
@@ -132,8 +140,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [accessToken, clearSession]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, accessToken, loading, login, register, verifyEmail, resendVerification, logout, refreshUser, setUser }),
-    [user, accessToken, loading, login, register, verifyEmail, resendVerification, logout, refreshUser],
+    () => ({ user, accessToken, loading, login, register, verifyEmail, resendVerification, logout, becomeStreamer, refreshUser, setUser }),
+    [user, accessToken, loading, login, register, verifyEmail, resendVerification, logout, becomeStreamer, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

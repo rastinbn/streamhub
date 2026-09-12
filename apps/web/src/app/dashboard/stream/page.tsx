@@ -4,7 +4,8 @@ export default function DashboardStreamPage() {
   return (
     <RoutePlaceholder
       route="/dashboard/stream"
-      description="Configure and go live — stream keys, encoder settings and broadcast tools. No reference image exists yet, so this page stays a placeholder until one is added."
+      description="Configure and go live — stream keys, encoder settings and broadcast tools. Use the Go live tool for your broadcast setup."
+      status="draft"
     />
   );
 }

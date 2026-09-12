@@ -40,3 +40,41 @@ export function formatDate(iso: string | null | undefined): string {
   if (Number.isNaN(date.getTime())) return '—';
   return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
+
+/** Seconds → human-readable ("45s", "12m 30s", "02:14:35"). */
+export function formatSeconds(seconds: number): string {
+  const value = Math.max(0, Math.floor(seconds));
+  if (value < 60) return `${value}s`;
+  if (value < 3600) {
+    const m = Math.floor(value / 60);
+    const s = value % 60;
+    return s ? `${m}m ${s}s` : `${m}m`;
+  }
+  const h = Math.floor(value / 3600);
+  const m = Math.floor((value % 3600) / 60);
+  const s = value % 60;
+  return [h, m, s].map((n) => String(n).padStart(2, '0')).join(':');
+}
+
+/** "3 min ago", "2 hr ago", "Yesterday", "12 Aug", etc. */
+export function timeAgo(date: string | Date): string {
+  const ms = Date.now() - new Date(date).getTime();
+  if (ms < 0) return 'just now';
+
+  const seconds = Math.floor(ms / 1_000);
+  if (seconds < 60) return 'just now';
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 30) return `${days}d ago`;
+
+  const d = new Date(date);
+  const month = d.toLocaleString('en-GB', { month: 'short' });
+  return `${d.getDate()} ${month}`;
+}

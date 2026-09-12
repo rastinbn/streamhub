@@ -18,6 +18,7 @@ import { useCategories } from '@/hooks/useCategories';
 import { useAuth } from '@/lib/auth-context';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { isSafeImageSrc } from '@/lib/security';
+import { HLS_BASE_URL } from '@/lib/hls';
 import type { ChannelPublic, StreamWithKey } from '@streamhub/types';
 
 const RTMP_URL = process.env.NEXT_PUBLIC_RTMP_URL ?? 'rtmp://localhost:1935';
@@ -159,6 +160,15 @@ export default function CreatePage() {
       /* silent — key copy is the critical one */
     }
   }, []);
+
+  const copyPreview = useCallback(async () => {
+    if (!created) return;
+    try {
+      await navigator.clipboard.writeText(`${HLS_BASE_URL}/${created.streamKey}/index.m3u8`);
+    } catch {
+      /* silent */
+    }
+  }, [created]);
 
   if (loading || (!user && !loading)) {
     return (
@@ -394,6 +404,27 @@ export default function CreatePage() {
                       {copied ? 'Copied' : 'Copy'}
                     </button>
                   </div>
+                </dd>
+              </div>
+
+              <div className="rounded-lg bg-surface-container p-md">
+                <dt className="flex items-center gap-1.5 text-label-sm font-label-sm uppercase tracking-wide text-on-surface-variant">
+                  <MonitorPlay className="h-3.5 w-3.5" />
+                  HLS preview URL
+                </dt>
+                <dd className="mt-1 flex items-center justify-between gap-sm">
+                  <code className="truncate font-body-md text-body-md text-on-surface">
+                    {HLS_BASE_URL}/{created.streamKey}/index.m3u8
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => void copyPreview()}
+                    aria-label="Copy HLS preview URL"
+                    className="flex shrink-0 items-center gap-1 rounded-md border border-outline-variant px-2 py-1 text-label-sm font-label-sm text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    Copy
+                  </button>
                 </dd>
               </div>
             </dl>

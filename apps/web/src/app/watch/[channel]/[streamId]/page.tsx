@@ -11,6 +11,7 @@ import { useWatchChat } from '@/hooks/useWatchChat';
 import { useViewerHeartbeat } from '@/hooks/useViewerHeartbeat';
 import { useAuth } from '@/lib/auth-context';
 import { formatCompact, formatDuration } from '@/lib/format';
+import { streamHlsUrl } from '@/lib/hls';
 import {
   MISSING_NAME,
   PLACEHOLDER_ALT,
@@ -79,12 +80,16 @@ export default function WatchPage() {
     new Set([stream.category, channel?.category].filter((v): v is string => Boolean(v))),
   );
 
+  const isLive = stream.status === 'LIVE';
+
   const watchStream: WatchStream = {
     title: stream.title ?? UNTITLED,
     viewerCount: formatCompact(chat.liveViewerCount ?? status?.viewerCount ?? stream.viewerCount),
     duration: formatDuration(status?.startedAt ?? stream.startedAt, status?.endedAt ?? stream.endedAt),
     thumbnailUrl: stream.thumbnail ?? channel?.banner ?? PLACEHOLDER_THUMBNAIL,
     thumbnailAlt: PLACEHOLDER_ALT,
+    hlsUrl: isLive ? streamHlsUrl(stream.playbackPath) : null,
+    isLive,
     streamer: {
       name: channel?.name ?? MISSING_NAME,
       avatarUrl: channel?.avatar ?? PLACEHOLDER_AVATAR,

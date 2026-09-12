@@ -52,7 +52,7 @@ function toCard(stream: StreamPublic): StreamCardProps {
     title: stream.title ?? UNTITLED,
     streamerName: stream.channelName ?? MISSING_NAME,
     category: stream.category ?? MISSING_NAME,
-    viewerCount: Number((stream.viewerCount / 1000).toFixed(1)),
+    viewerCount: stream.viewerCount,
     thumbnailUrl: stream.thumbnail ?? PLACEHOLDER_THUMBNAIL,
     thumbnailAlt: PLACEHOLDER_ALT,
     avatarUrl: stream.channelAvatar ?? PLACEHOLDER_AVATAR,
@@ -252,6 +252,7 @@ export default function Browse() {
                 avatarUrl={stream.avatarUrl}
                 avatarAlt={stream.avatarAlt}
                 isLive={stream.isLive}
+                href={stream.href}
               />
             </div>
           ))}

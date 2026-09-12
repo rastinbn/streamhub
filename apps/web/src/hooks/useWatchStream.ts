@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, channelsApi, streamsApi, usersApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { emitDataChange, useRouteRefreshKey } from '@/lib/data-sync';
@@ -31,6 +31,10 @@ export function useWatchStream(
   const [isError, setIsError] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isNotFound, setIsNotFound] = useState(false);
+  // Tracks the last known stream status for the status-poll effect below
+  // (which refetches the full stream when it flips to LIVE) without the
+  // closure capturing a stale `stream` value.
+  const streamStatusRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     if (!streamId) return;
@@ -45,6 +49,7 @@ export function useWatchStream(
         accessToken ? usersApi.getMyFollowing(accessToken, { limit: 50 }) : Promise.resolve(null),
       ]);
       setStream(streamRes);
+      streamStatusRef.current = streamRes.status;
       setChannel(channelRes);
       setStatus({
         id: streamRes.id,
@@ -75,6 +80,13 @@ export function useWatchStream(
       try {
         const next = await streamsApi.getStatus(streamId);
         if (!cancelled) setStatus(next);
+        // The stream went LIVE after we loaded it: re-fetch the record so we
+        // pick up its `playbackPath` (that's how the HLS URL is assembled)
+        // instead of waiting for a manual page refresh.
+        if (next.status === 'LIVE' && streamStatusRef.current !== 'LIVE') {
+          streamStatusRef.current = 'LIVE';
+          void load();
+        }
       } catch {
         // Keep the last known status if a poll fails.
       }

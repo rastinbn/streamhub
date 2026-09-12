@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
-import AuthRequired from '@/components/layout/AuthRequired';
+import StreamerRequired from '@/components/layout/StreamerRequired';
 
 export const metadata: Metadata = {
-  title: 'Dashboard',
+  title: 'Creator Dashboard',
   robots: { index: false, follow: false },
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  return <AuthRequired>{children}</AuthRequired>;
+  return <StreamerRequired>{children}</StreamerRequired>;
 }

@@ -9,23 +9,22 @@ import { MISSING_NAME, PLACEHOLDER_ALT, PLACEHOLDER_AVATAR, PLACEHOLDER_THUMBNAI
 import { ChevronDown, Radio } from 'lucide-react';
 import type { StreamPublic } from '@streamhub/types';
 
-// Editorial hero — there is no "featured stream" endpoint in the contract, so
-// this stays curated. The grid below it is backed by the real live-streams API.
-const HERO: HeroData = {
-  title: 'Pro Tournament Finals: Group Stage Day 1',
-  streamerName: 'StellarGaming',
-  category: 'Valorant',
-  tags: ['FPS', 'Competitive', 'Drops'],
-  viewerCount: '25.4K',
-  thumbnailUrl:
-    'https://lh3.googleusercontent.com/aida-public/AB6AXuDlMp5ZXNR20d9IRJy4GD64fFT1-ZgL_ePf_XDGkuHDfvudIJ9kBfB-i9Gfu1Abxx9QpUj8XPSnMIUusbTNjAmdV1U9tVvHgyAyFw9-b3UTanjgcvBnDPihB1La_eisiu0FUK1xYobElR2iiXkIS5056TYmIbDSRGrjH5CHQp1Ua8hl_6oi6Mahu8ZE-Ij8Y9SA-X2snF9R1rn9hrYjIsJETZC2PJKurvyhR0pwecwAKktOWwxyYasfWA',
-  thumbnailAlt:
-    'A high-octane esports tournament final match in a massive stadium. The perspective is from behind a pro player looking at their monitor, showing a tense moment in an FPS game. The stadium is illuminated with dazzling neon lasers and dramatic volumetric smoke. The overall mood is electrifying, competitive, and technologically advanced, with deep blacks and vibrant primary colors.',
-  avatarUrl:
-    'https://lh3.googleusercontent.com/aida-public/AB6AXuDBY3XXk5g9KeNZXLQ-l9Tuh6zIw24cCf5sFYTA9-iUdXFmxA5l8hHwna5XtM29k7a6UIqdxJQSJwWqgDOQPbLdNirXLf4CaIfAe2LTdcbzd8FaB8VoYH0vHy4EPAfQ7acxn3b2WzCZXRQyqW5MNF9hA_QE43Nzt9OPQaPYRhpWY_BNRLJ7xX3R-g7SJdMf9CiaOAWtR6-63REqR8rDI9GN5fsexc6j1mbrAtg83bAe2DCxmk9Bxdx9Ow',
-  avatarAlt:
-    'A close-up portrait of a professional gamer with a focused expression, wearing a premium gaming headset. The lighting is cinematic, featuring dramatic purple and cyan rim lighting against a dark background. The aesthetic is sleek and modern.',
-};
+// The hero is the top live stream from the API — fully real, clicks through
+// to its watch page. The grid below it is the same live-streams feed.
+function toHero(stream: StreamPublic): HeroData {
+  return {
+    title: stream.title ?? UNTITLED,
+    streamerName: stream.channelName ?? MISSING_NAME,
+    category: stream.category ?? MISSING_NAME,
+    tags: [stream.category].filter((v): v is string => Boolean(v)),
+    viewerCount: formatCompact(stream.viewerCount),
+    thumbnailUrl: stream.thumbnail ?? PLACEHOLDER_THUMBNAIL,
+    thumbnailAlt: PLACEHOLDER_ALT,
+    avatarUrl: stream.channelAvatar ?? PLACEHOLDER_AVATAR,
+    avatarAlt: PLACEHOLDER_ALT,
+    href: stream.channelSlug ? `/watch/${stream.channelSlug}/${stream.id}` : undefined,
+  };
+}
 
 // Streams from the API carry their channel's slug/name/avatar, so cards
 // link straight to /watch/{channelSlug}/{streamId}. Missing bits fall back
@@ -49,14 +48,17 @@ function toHomeCard(stream: StreamPublic, index: number): HomeStreamCardData {
 export default function HomeFeed() {
   const { streams, isLoading, isError, error } = useStreams({}, { liveOnly: true });
   const hasStreams = streams.length > 0;
+  const hero = streams[0] ? toHero(streams[0]) : null;
 
   return (
     <div className="mx-auto w-full max-w-[1600px] flex-1 p-md pt-16 md:p-lg md:pt-0 lg:p-layout-margin">
       <div className="flex flex-col gap-xl">
-        {/* Featured Hero */}
-        <div className="rounded-xl motion-safe:animate-[fade-in-up_400ms_ease-out_backwards]">
-          <HeroSection hero={HERO} />
-        </div>
+        {/* Featured hero (top live stream) */}
+        {hero && (
+          <div className="rounded-xl motion-safe:animate-[fade-in-up_400ms_ease-out_backwards]">
+            <HeroSection hero={hero} />
+          </div>
+        )}
 
         {/* Live Now */}
         <section className="flex flex-col gap-md">

@@ -106,6 +106,11 @@ export class StreamsService {
         category: dto.category,
         thumbnail: dto.thumbnail,
         streamKeyHash: hashStreamKey(rawKey),
+        // The raw key doubles as the MediaMTX path (OBS publishes to
+        // `rtmp://<host>/<rawKey>`), which is also the HLS path. Keep a
+        // plaintext copy so the API can build playback URLs; it is only ever
+        // serialized for LIVE streams (see `toPublicStream`).
+        playbackPath: rawKey,
       },
     });
 
@@ -174,7 +179,7 @@ export class StreamsService {
     const rawKey = generateStreamKey();
     const updated = await this.prisma.stream.update({
       where: { id: stream.id },
-      data: { streamKeyHash: hashStreamKey(rawKey) },
+      data: { streamKeyHash: hashStreamKey(rawKey), playbackPath: rawKey },
     });
 
     return { ...toPublicStream(updated), streamKey: rawKey };
@@ -195,6 +200,7 @@ export class StreamsService {
       where: { id: stream.id },
       data: {
         streamKeyHash: null,
+        playbackPath: null,
         status: wasLive ? 'ENDED' : stream.status,
         endedAt: wasLive ? new Date() : stream.endedAt,
       },

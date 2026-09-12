@@ -4,6 +4,9 @@ export interface WatchStream {
   duration: string;
   thumbnailUrl: string;
   thumbnailAlt: string;
+  /** Absolute HLS master playlist URL; null when the stream is not live. */
+  hlsUrl?: string | null;
+  isLive: boolean;
   streamer: {
     name: string;
     avatarUrl: string;

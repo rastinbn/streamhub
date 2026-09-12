@@ -27,4 +27,23 @@ export class UsersService {
     });
     return toPublicUser(user);
   }
+
+  /**
+   * Upgrades a regular USER account to STREAMER (idempotent — account with an
+   * equal-or-higher role is returned unchanged) so the owner can stream and
+   * access the creator dashboard.
+   */
+  async becomeStreamer(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    if (user.role === 'USER') {
+      return this.prisma.user.update({
+        where: { id: userId },
+        data: { role: 'STREAMER' },
+      });
+    }
+    return user;
+  }
 }

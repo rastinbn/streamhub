@@ -109,6 +109,11 @@ model Stream {
   // once revoked — a revoked stream cannot authenticate a publish until
   // rotated again.
   streamKeyHash String?      @unique
+  // Plaintext copy of the raw stream key used purely to build the public HLS
+  // playback URL (`http://<hls-host>:8888/<playbackPath>/index.m3u8`). It is
+  // the same opaque path OBS publishes to, so it is only ever exposed to
+  // clients for LIVE streams; non-live rows never serialize it.
+  playbackPath String?       @unique
   status        StreamStatus @default(OFFLINE)
   startedAt     DateTime?
   endedAt       DateTime?

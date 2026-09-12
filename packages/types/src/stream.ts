@@ -23,6 +23,12 @@ export interface StreamPublic {
   channelSlug?: string | null;
   channelName?: string | null;
   channelAvatar?: string | null;
+  /**
+   * Opaque MediaMTX path (the raw stream key copy) used to build the HLS
+   * playback URL: `{HLS_BASE}/{playbackPath}/index.m3u8`. Only present on
+   * LIVE streams — offline/ended rows never serialize it.
+   */
+  playbackPath?: string | null;
   title?: string | null;
   description?: string | null;
   category?: string | null;

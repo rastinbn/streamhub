@@ -7,12 +7,17 @@
 #
 # This server remains isolated from the NestJS API's business logic — it
 # never validates users/channels/roles itself. The only integration point is
-# the pair of HTTP callbacks below (`runOnPublish` / `runOnUnpublish`),
+# the pair of HTTP callbacks below (`runOnOnline` / `runOnOffline`),
 # which simply forward "a publish started/stopped on path X" to the API so
 # `Stream.status` can be kept in sync. The API is the one that decides what
 # that means (looking `X` up as a stream key hash, flipping OFFLINE/LIVE/
 # ENDED, stamping startedAt/endedAt) — see
 # `apps/api/src/modules/streams/streams.{service,controller}.ts`.
+#
+# NOTE: newer MediaMTX images renamed the old `runOnPublish` /
+# `runOnUnpublish` hooks to `runOnOnline` / `runOnOffline`. `runOnOnline`
+# fires when a source actually starts providing the stream (OBS is live) and
+# `runOnOffline` fires when it stops — both still expose `$MTX_PATH`.
 #
 # `$MTX_PATH` is substituted by MediaMTX with the RTMP path OBS published
 # to, which under `all_others` is exactly the stream key issued by
@@ -25,12 +30,12 @@
 # out of the box.
 #
 # Note: these hooks *notify* the API; they do not themselves block an
-# unrecognized/revoked key from publishing at the RTMP level (MediaMTX's
-# `authHTTPAddress` gate could add that in a later phase). The API still
-# refuses to ever report such a stream as LIVE — `handlePublish` returns
-# `401` for a key it doesn't recognize — but the raw RTMP ingest itself is
-# not yet cut off. Good enough for Phase 5's scope (metadata + status
-# lifecycle); revisit if OBS-side key enforcement becomes a requirement.
+    # unrecognized/revoked key from publishing at the RTMP level (MediaMTX's
+    # authHTTPAddress gate could add that in a later phase). The API still
+    # refuses to ever report such a stream as LIVE — `handlePublish` returns
+    # `401` for a key it doesn't recognize — but the raw RTMP ingest itself is
+    # not yet cut off. Good enough for Phase 5's scope (metadata + status
+    # lifecycle); revisit if OBS-side key enforcement becomes a requirement.
 
 logLevel: info
 logDestinations: [stdout]
@@ -76,20 +81,19 @@ paths:
   all_others:
     source: publisher
 
-    # Fired once a publisher (OBS) successfully starts sending RTMP data.
-    # `-o /dev/null` and no `2>&1` propagation: a slow/unreachable API must
-    # never be allowed to block or fail the RTMP session itself.
-    runOnPublish: >
+    # Fired when a source starts actually providing the stream (OBS sending
+    # RTMP data). `-o /dev/null` and no `2>&1` propagation: a slow/unreachable
+    # API must never be allowed to block or fail the RTMP session itself.
+    runOnOnline: >
       curl -s -o /dev/null -m 5 -X POST
       "${MEDIAMTX_API_URL:-http://host.docker.internal:4000}/api/v1/streams/webhooks/mediamtx/publish"
       -H "Content-Type: application/json"
       -H "x-webhook-secret: ${MEDIAMTX_WEBHOOK_SECRET:-dev-mediamtx-secret}"
       -d "{\"streamKey\":\"$MTX_PATH\"}"
-    runOnPublishRestart: yes
 
-    # Fired when the publisher disconnects (stream ends, OBS closed, network
+    # Fired when the source stops providing the stream (OBS closed, network
     # drop, ...).
-    runOnUnpublish: >
+    runOnOffline: >
       curl -s -o /dev/null -m 5 -X POST
       "${MEDIAMTX_API_URL:-http://host.docker.internal:4000}/api/v1/streams/webhooks/mediamtx/unpublish"
       -H "Content-Type: application/json"

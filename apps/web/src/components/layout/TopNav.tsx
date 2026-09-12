@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, Search, Plus, Video, Bell, X, ShieldCheck } from 'lucide-react';
+import { Menu, Search, Plus, Video, Bell, X, ShieldCheck, LayoutDashboard } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { isSafeImageSrc } from '@/lib/security';
+import { canStream } from '@/lib/roles';
 
 interface TopNavProps {
   onMenuClick: () => void;
@@ -47,6 +48,16 @@ export default function TopNav({ onMenuClick, menuOpen }: TopNavProps) {
     'inline-flex items-center justify-center w-10 h-10 text-on-surface-variant rounded-full ' +
     'transition-colors duration-150 hover:bg-surface-variant/50 hover:text-on-surface ' +
     'active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary';
+
+  // Where the "+ Create" / "Go live" buttons should send the user:
+  // not signed in → log in first (then return to /become-streamer),
+  // signed in but not a streamer → become-streamer gate,
+  // streamer+ → the go-live tool.
+  const createHref = !user
+    ? '/login?redirect=/become-streamer'
+    : canStream(user.role)
+      ? '/create'
+      : '/become-streamer';
 
   return (
     <nav
@@ -100,14 +111,14 @@ export default function TopNav({ onMenuClick, menuOpen }: TopNavProps) {
         </button>
 
         <Link
-          href="/create"
+          href={createHref}
           className="hidden items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-primary-fixed active:scale-[0.98] sm:flex"
         >
           <Plus className="h-4 w-4" />
           Create
         </Link>
 
-        <Link href="/create" aria-label="Go live" className={iconBtn}>
+        <Link href={createHref} aria-label="Go live" className={iconBtn}>
           <Video className="h-5 w-5" />
         </Link>
 
@@ -178,8 +189,18 @@ export default function TopNav({ onMenuClick, menuOpen }: TopNavProps) {
                 >
                   View profile
                 </Link>
+                {canStream(user.role) && (
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setProfileMenuOpen(false)}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-on-surface-variant transition-colors hover:bg-surface-variant/50 hover:text-on-surface"
+                  >
+                    <LayoutDashboard className="h-4 w-4" />
+                    Creator dashboard
+                  </Link>
+                )}
                 <Link
-                  href="/dashboard/settings"
+                  href="/settings"
                   onClick={() => setProfileMenuOpen(false)}
                   className="block px-4 py-2.5 text-sm text-on-surface-variant transition-colors hover:bg-surface-variant/50 hover:text-on-surface"
                 >
