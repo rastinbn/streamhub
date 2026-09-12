@@ -94,6 +94,13 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Phase 10 — banned accounts cannot authenticate, even with valid
+    // credentials. Deliberately the same 401 as bad credentials: the login
+    // form must not become a ban-status oracle.
+    if (user.bannedAt) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) {
       throw new UnauthorizedException('Invalid credentials');

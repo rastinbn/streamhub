@@ -16,6 +16,8 @@ export interface FakeUserRow {
   bio: string | null;
   role: 'USER' | 'STREAMER' | 'MODERATOR' | 'ADMIN';
   emailVerified: boolean;
+  bannedAt: Date | null;
+  banReason: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -48,6 +50,8 @@ export interface FakeChannelRow {
   banner: string | null;
   category: string | null;
   followersCount: number;
+  suspendedAt: Date | null;
+  suspensionReason: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -59,7 +63,7 @@ type CreateInput = {
   role?: FakeUserRow['role'];
 };
 
-type UpdateInput = Partial<Pick<FakeUserRow, 'displayName' | 'avatar' | 'bio' | 'emailVerified'>>;
+type UpdateInput = Partial<Pick<FakeUserRow, 'displayName' | 'avatar' | 'bio' | 'emailVerified' | 'bannedAt' | 'banReason' | 'role'>>;
 
 type CreateChannelInput = {
   ownerId: string;
@@ -72,7 +76,7 @@ type CreateChannelInput = {
 };
 
 type UpdateChannelInput = Partial<
-  Pick<FakeChannelRow, 'name' | 'slug' | 'description' | 'avatar' | 'banner' | 'category'>
+  Pick<FakeChannelRow, 'name' | 'slug' | 'description' | 'avatar' | 'banner' | 'category' | 'suspendedAt' | 'suspensionReason'>
 > & { followersCount?: { increment?: number; decrement?: number } };
 
 /**
@@ -111,11 +115,69 @@ type UpdateStreamInput = Partial<
   >
 >;
 
+/** Minimal shape of the `vods` rows the content module operates on. */
+export interface FakeVodRow {
+  id: string;
+  streamId: string | null;
+  channelId: string;
+  title: string;
+  description: string | null;
+  thumbnail: string | null;
+  storageKey: string;
+  durationSeconds: number;
+  views: number;
+  visibility: 'PUBLIC' | 'UNLISTED' | 'PRIVATE';
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+type CreateVodInput = {
+  streamId?: string;
+  channelId: string;
+  title: string;
+  description?: string;
+  thumbnail?: string;
+  storageKey: string;
+  durationSeconds?: number;
+  visibility?: FakeVodRow['visibility'];
+};
+
+type UpdateVodInput = Partial<
+  Pick<FakeVodRow, 'title' | 'description' | 'thumbnail' | 'visibility'>
+> & { views?: { increment?: number } };
+
 /** Minimal shape of the `follows` rows the follows module operates on. */
 export interface FakeFollowRow {
   id: string;
   followerId: string;
   channelId: string;
+  createdAt: Date;
+}
+
+/** Minimal shape of the `reports` rows the reports module operates on. */
+export interface FakeReportRow {
+  id: string;
+  reporterId: string;
+  targetType: 'USER' | 'CHANNEL' | 'STREAM' | 'VOD';
+  targetId: string;
+  reason: 'SPAM' | 'HARASSMENT' | 'INAPPROPRIATE_CONTENT' | 'COPYRIGHT' | 'OTHER';
+  description: string | null;
+  status: 'PENDING' | 'REVIEWING' | 'RESOLVED' | 'DISMISSED';
+  reviewedById: string | null;
+  reviewedAt: Date | null;
+  resolutionNote: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Minimal shape of the `audit_logs` rows the admin module operates on. */
+export interface FakeAuditLogRow {
+  id: string;
+  actorId: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  metadata: Record<string, unknown> | null;
   createdAt: Date;
 }
 
@@ -191,6 +253,9 @@ function matchesWhere(row: Record<string, unknown>, where: ListWhere): boolean {
     }
     if (condition && typeof condition === 'object' && !Array.isArray(condition)) {
       const cond = condition as Record<string, unknown>;
+      if ('in' in cond && Array.isArray(cond.in)) {
+        return (cond.in as unknown[]).includes(row[key]);
+      }
       if ('contains' in cond) {
         const needle = String(cond.contains).toLowerCase();
         const haystack = String(row[key] ?? '').toLowerCase();
@@ -234,6 +299,9 @@ export class FakePrismaService {
   private categoryRows: FakeCategoryRow[] = [];
   private streamAnalyticsRows: FakeStreamAnalyticsRow[] = [];
   private viewerMetricRows: FakeViewerMetricRow[] = [];
+  private vodRows: FakeVodRow[] = [];
+  private reportRows: FakeReportRow[] = [];
+  private auditLogRows: FakeAuditLogRow[] = [];
 
   /** Test helper: reset state between test cases. */
   reset(): void {
@@ -245,6 +313,9 @@ export class FakePrismaService {
     this.categoryRows = [];
     this.streamAnalyticsRows = [];
     this.viewerMetricRows = [];
+    this.vodRows = [];
+    this.reportRows = [];
+    this.auditLogRows = [];
   }
 
   /**
@@ -271,6 +342,8 @@ export class FakePrismaService {
       bio: row.bio ?? null,
       role: row.role ?? 'USER',
       emailVerified: row.emailVerified ?? false,
+      bannedAt: row.bannedAt ?? null,
+      banReason: row.banReason ?? null,
       createdAt: row.createdAt ?? now,
       updatedAt: row.updatedAt ?? now,
     };
@@ -291,6 +364,8 @@ export class FakePrismaService {
       banner: row.banner ?? null,
       category: row.category ?? null,
       followersCount: row.followersCount ?? 0,
+      suspendedAt: row.suspendedAt ?? null,
+      suspensionReason: row.suspensionReason ?? null,
       createdAt: row.createdAt ?? now,
       updatedAt: row.updatedAt ?? now,
     };
@@ -357,6 +432,27 @@ export class FakePrismaService {
     return full;
   }
 
+  /** Test helper: seed a vod row directly. */
+  seedVod(row: Partial<FakeVodRow> & { channelId: string; title: string; storageKey: string }): FakeVodRow {
+    const now = new Date();
+    const full: FakeVodRow = {
+      id: row.id ?? randomUUID(),
+      streamId: row.streamId ?? null,
+      channelId: row.channelId,
+      title: row.title,
+      description: row.description ?? null,
+      thumbnail: row.thumbnail ?? null,
+      storageKey: row.storageKey,
+      durationSeconds: row.durationSeconds ?? 0,
+      views: row.views ?? 0,
+      visibility: row.visibility ?? 'PUBLIC',
+      createdAt: row.createdAt ?? now,
+      updatedAt: row.updatedAt ?? now,
+    };
+    this.vodRows.push(full);
+    return full;
+  }
+
   /** Test helper: seed a category row directly. */
   seedCategory(row: Partial<FakeCategoryRow> & { name: string; slug: string }): FakeCategoryRow {
     const now = new Date();
@@ -371,6 +467,39 @@ export class FakePrismaService {
     };
     this.categoryRows.push(full);
     return full;
+  }
+
+  /**
+   * Expands the one relation filter the content module uses
+   * (`{ channel: { ownerId } }` and `OR: [...same...]`) into flat
+   * channelId-set matching, since fake VOD rows don't carry a `channel`
+   * object.
+   */
+  private flattenVodWhere(where: ListWhere): ListWhere {
+    const flat: ListWhere = { ...where };
+
+    const ownerIdsFor = (rel: { ownerId?: string }): Set<string> =>
+      new Set(this.channelRows.filter((c) => c.ownerId === rel.ownerId).map((c) => c.id));
+
+    if ((flat as { channel?: { ownerId?: string } }).channel) {
+      const ids = ownerIdsFor((flat as { channel: { ownerId?: string } }).channel);
+      delete (flat as Record<string, unknown>).channel;
+      (flat as Record<string, unknown>).channelId = { in: [...ids] };
+    }
+
+    if (Array.isArray((flat as { OR?: unknown[] }).OR)) {
+      (flat as { OR: ListWhere[] }).OR = (flat as { OR: ListWhere[] }).OR.map((sub) => {
+        const s = { ...sub };
+        if ((s as { channel?: { ownerId?: string } }).channel) {
+          const ids = ownerIdsFor((s as { channel: { ownerId?: string } }).channel);
+          delete (s as Record<string, unknown>).channel;
+          (s as Record<string, unknown>).channelId = { in: [...ids] };
+        }
+        return s;
+      });
+    }
+
+    return flat;
   }
 
   /** Test helper: promote an already-registered user to ADMIN — there is
@@ -413,6 +542,8 @@ export class FakePrismaService {
         bio: null,
         role: data.role ?? 'USER',
         emailVerified: false,
+        bannedAt: null,
+        banReason: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -427,6 +558,9 @@ export class FakePrismaService {
       if (data.avatar !== undefined) row.avatar = data.avatar ?? null;
       if (data.bio !== undefined) row.bio = data.bio ?? null;
       if (data.emailVerified !== undefined) row.emailVerified = data.emailVerified;
+      if (data.bannedAt !== undefined) row.bannedAt = data.bannedAt ?? null;
+      if (data.banReason !== undefined) row.banReason = data.banReason ?? null;
+      if (data.role !== undefined) row.role = data.role;
       row.updatedAt = new Date();
       return row;
     },
@@ -518,6 +652,8 @@ export class FakePrismaService {
         banner: data.banner ?? null,
         category: data.category ?? null,
         followersCount: 0,
+        suspendedAt: null,
+        suspensionReason: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -534,6 +670,8 @@ export class FakePrismaService {
       if (data.avatar !== undefined) row.avatar = data.avatar ?? null;
       if (data.banner !== undefined) row.banner = data.banner ?? null;
       if (data.category !== undefined) row.category = data.category ?? null;
+      if (data.suspendedAt !== undefined) row.suspendedAt = data.suspendedAt ?? null;
+      if (data.suspensionReason !== undefined) row.suspensionReason = data.suspensionReason ?? null;
       if (data.followersCount?.increment !== undefined) row.followersCount += data.followersCount.increment;
       if (data.followersCount?.decrement !== undefined) row.followersCount -= data.followersCount.decrement;
       row.updatedAt = new Date();
@@ -906,6 +1044,228 @@ export class FakePrismaService {
         _max: max,
       };
     },
+  };
+
+  vod = {
+    findUnique: async ({ where }: { where: { id?: string } }) => {
+      if (where.id) return this.vodRows.find((r) => r.id === where.id) ?? null;
+      return null;
+    },
+
+    findMany: async ({
+      where = {},
+      orderBy,
+      skip = 0,
+      take = 20,
+    }: {
+      where?: ListWhere;
+      orderBy?: Record<string, 'asc' | 'desc'>;
+      skip?: number;
+      take?: number;
+    }) => {
+      const flatWhere = this.flattenVodWhere(where);
+      let rows = this.vodRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, flatWhere));
+      if (orderBy?.createdAt) {
+        rows = [...rows].sort((a, b) =>
+          orderBy.createdAt === 'asc'
+            ? a.createdAt.getTime() - b.createdAt.getTime()
+            : b.createdAt.getTime() - a.createdAt.getTime(),
+        );
+      }
+      return rows.slice(skip, skip + take);
+    },
+
+    count: async ({ where = {} }: { where?: ListWhere }) => {
+      const flatWhere = this.flattenVodWhere(where);
+      return this.vodRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, flatWhere)).length;
+    },
+
+    create: async ({ data }: { data: CreateVodInput }) => {
+      const now = new Date();
+      const row: FakeVodRow = {
+        id: randomUUID(),
+        streamId: data.streamId ?? null,
+        channelId: data.channelId,
+        title: data.title,
+        description: data.description ?? null,
+        thumbnail: data.thumbnail ?? null,
+        storageKey: data.storageKey,
+        durationSeconds: data.durationSeconds ?? 0,
+        views: 0,
+        visibility: data.visibility ?? 'PRIVATE',
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.vodRows.push(row);
+      return row;
+    },
+
+    update: async ({ where, data }: { where: { id: string }; data: UpdateVodInput }) => {
+      const row = this.vodRows.find((r) => r.id === where.id);
+      if (!row) throw new Error('Record to update not found.');
+      if (data.title !== undefined) row.title = data.title;
+      if (data.description !== undefined) row.description = data.description ?? null;
+      if (data.thumbnail !== undefined) row.thumbnail = data.thumbnail ?? null;
+      if (data.visibility !== undefined) row.visibility = data.visibility;
+      if (data.views?.increment !== undefined) row.views += data.views.increment;
+      row.updatedAt = new Date();
+      return row;
+    },
+
+    delete: async ({ where }: { where: { id: string } }) => {
+      const idx = this.vodRows.findIndex((r) => r.id === where.id);
+      if (idx === -1) throw new Error('Record to delete does not exist.');
+      const [removed] = this.vodRows.splice(idx, 1);
+      return removed;
+    },
+  };
+
+  /** Phase 10 — reports model (submission, queue, triage). */
+  report = {
+    create: async ({
+      data,
+    }: {
+      data: {
+        reporterId: string;
+        targetType: FakeReportRow['targetType'];
+        targetId: string;
+        reason: FakeReportRow['reason'];
+        description?: string;
+      };
+    }) => {
+      const now = new Date();
+      const row: FakeReportRow = {
+        id: randomUUID(),
+        reporterId: data.reporterId,
+        targetType: data.targetType,
+        targetId: data.targetId,
+        reason: data.reason,
+        description: data.description ?? null,
+        status: 'PENDING',
+        reviewedById: null,
+        reviewedAt: null,
+        resolutionNote: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.reportRows.push(row);
+      return row;
+    },
+
+    findUnique: async ({ where, include }: { where: { id?: string }; include?: { reporter?: unknown } }) => {
+      const row = where.id ? this.reportRows.find((r) => r.id === where.id) ?? null : null;
+      if (!row) return null;
+      return include?.reporter ? { ...row, reporter: this.reporterOf(row.reporterId) } : row;
+    },
+
+    findMany: async ({
+      where = {},
+      include,
+      orderBy,
+      skip = 0,
+      take = 20,
+    }: {
+      where?: ListWhere;
+      include?: { reporter?: unknown };
+      orderBy?: Record<string, 'asc' | 'desc'>;
+      skip?: number;
+      take?: number;
+    }) => {
+      let rows = this.reportRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where));
+      if (orderBy?.createdAt) {
+        rows = [...rows].sort((a, b) =>
+          orderBy.createdAt === 'asc'
+            ? a.createdAt.getTime() - b.createdAt.getTime()
+            : b.createdAt.getTime() - a.createdAt.getTime(),
+        );
+      }
+      const page = rows.slice(skip, skip + take);
+      return include?.reporter ? page.map((row) => ({ ...row, reporter: this.reporterOf(row.reporterId) })) : page;
+    },
+
+    count: async ({ where = {} }: { where?: ListWhere }) =>
+      this.reportRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where)).length,
+
+    update: async ({
+      where,
+      data,
+      include,
+    }: {
+      where: { id: string };
+      data: {
+        status?: FakeReportRow['status'];
+        resolutionNote?: string | null;
+        reviewedById?: string | null;
+        reviewedAt?: Date | null;
+      };
+      include?: { reporter?: unknown };
+    }) => {
+      const row = this.reportRows.find((r) => r.id === where.id);
+      if (!row) throw new Error('Record to update not found.');
+      if (data.status !== undefined) row.status = data.status;
+      if (data.resolutionNote !== undefined) row.resolutionNote = data.resolutionNote ?? null;
+      if (data.reviewedById !== undefined) row.reviewedById = data.reviewedById ?? null;
+      if (data.reviewedAt !== undefined) row.reviewedAt = data.reviewedAt ?? null;
+      row.updatedAt = new Date();
+      return include?.reporter ? { ...row, reporter: this.reporterOf(row.reporterId) } : row;
+    },
+  };
+
+  private reporterOf(reporterId: string): { id: string; username: string } | null {
+    const user = this.rows.find((r) => r.id === reporterId);
+    return user ? { id: user.id, username: user.username } : null;
+  }
+
+  /** Phase 10 — append-only audit-log model. No update/delete, by design. */
+  auditLog = {
+    create: async ({
+      data,
+    }: {
+      data: {
+        actorId: string;
+        action: string;
+        targetType: string;
+        targetId: string;
+        metadata?: Record<string, unknown>;
+      };
+    }) => {
+      const row: FakeAuditLogRow = {
+        id: randomUUID(),
+        actorId: data.actorId,
+        action: data.action,
+        targetType: data.targetType,
+        targetId: data.targetId,
+        metadata: data.metadata ?? null,
+        createdAt: new Date(),
+      };
+      this.auditLogRows.push(row);
+      return row;
+    },
+
+    findMany: async ({
+      where = {},
+      orderBy,
+      skip = 0,
+      take = 20,
+    }: {
+      where?: ListWhere;
+      orderBy?: Record<string, 'asc' | 'desc'>;
+      skip?: number;
+      take?: number;
+    }) => {
+      let rows = this.auditLogRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where));
+      if (orderBy?.createdAt) {
+        rows = [...rows].sort((a, b) =>
+          orderBy.createdAt === 'asc'
+            ? a.createdAt.getTime() - b.createdAt.getTime()
+            : b.createdAt.getTime() - a.createdAt.getTime(),
+        );
+      }
+      return rows.slice(skip, skip + take);
+    },
+
+    count: async ({ where = {} }: { where?: ListWhere }) =>
+      this.auditLogRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where)).length,
   };
 
   viewerMetric = {

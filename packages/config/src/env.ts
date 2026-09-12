@@ -49,6 +49,12 @@ export const envSchema = z
     MAIL_FROM: z.string().default('StreamHub <no-reply@streamhub.local>'),
     // Public URL of the web app, used to build links inside emails.
     WEB_APP_URL: z.string().default('http://localhost:3000'),
+
+    // Object storage (Phase 9). `local` driver keeps files on disk under
+    // `.data/object-storage/`; an S3-compatible driver will read its own
+    // keys once implemented. root is resolved relative to the API cwd.
+    STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
+    STORAGE_LOCAL_ROOT: z.string().default('.data/object-storage'),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV !== 'production') return;

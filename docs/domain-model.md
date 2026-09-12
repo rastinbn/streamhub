@@ -27,6 +27,7 @@ notifications.
 | `avatar` | String? | Avatar image URL |
 | `bio` | String? | Free-text profile bio |
 | `role` | Role | `USER` \| `STREAMER` \| `MODERATOR` \| `ADMIN`; default `USER` |
+| `bannedAt` / `banReason` | DateTime? / String? | Phase 10 moderation state. Set by `POST /moderation/users/:id/ban`; a banned user cannot log in (same 401 as bad credentials) and their sessions are revoked at ban time. Stripped from public payloads. |
 | `createdAt` / `updatedAt` | DateTime | |
 
 Relations: `channel` (1:1), `follows` (as follower), `messages` (ChatMessage author),
@@ -46,6 +47,7 @@ streamed.
 | `banner` | String? | Channel banner image URL |
 | `category` | String? | Free-text category (e.g. "Programming"); indexed for browse/filter |
 | `followersCount` | Int | Denormalized count, default `0`; maintained by the `follows` module (not yet implemented) |
+| `suspendedAt` / `suspensionReason` | DateTime? / String? | Phase 10 moderation state. A suspended channel cannot create streams; the publish webhook denies its keys; suspending force-ends any live broadcast. |
 | `ownerId` | String | Unique FK → `User.id` (one channel per user) |
 | `createdAt` / `updatedAt` | DateTime | |
 
@@ -216,6 +218,10 @@ The domain model only describes the **control plane** (metadata/state). The
 | `notifications` | Notification | Dispatch & read state |
 | `moderation` | (ChatMessage/User) | Future: bans, deletes, reports |
 | `analytics` | `StreamAnalytics`, `ViewerMetric` | Phase 8: viewer/engagement aggregates (Redis presence → sampled Postgres rows) |
+| `content` | `Vod` | Phase 9: recorded broadcasts (metadata only — binaries in object storage, see `docs/storage.md`) |
+| `reports` | `Report` | Phase 10: user-submitted reports; MODERATOR/ADMIN triage queue |
+| `moderation` | `User`, `Channel`, `Vod` | Phase 10: user ban, channel suspension, platform chat timeout/ban, content removal |
+| `admin` | `AuditLog` | Phase 10: append-only audit trail of every admin/moderator action (ADMIN-only read) |
 
 ---
 
@@ -234,3 +240,11 @@ The domain model only describes the **control plane** (metadata/state). The
   persistence there).
 - `Category` (Phase 7) is intentionally **not** a hard FK from `Channel.category` /
   `Stream.category` — see the Category entity section above for the full reasoning.
+- **Phase 10 entities:** `Report` and `AuditLog` reference their targets as loose
+  `(targetType, targetId)` pairs with **no FK** — the audit trail of "this was
+  reported / moderated" must survive deletion of the target row. `AuditLog.actorId`
+  is likewise FK-less so the trail survives actor deletion. Audit rows are
+  insert-only (no update/delete code path exists anywhere in the API).
+- Role changes (Phase 10) are ADMIN-only via `PATCH /admin/users/:id/role`. A
+  moderator cannot ban other moderators/admins; banning a user revokes their
+  sessions immediately (Redis-backed refresh-token store).

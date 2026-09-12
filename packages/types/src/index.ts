@@ -7,3 +7,5 @@ export * from './category';
 export * from './follow';
 export * from './analytics';
 export * from './admin';
+export * from './vod';
+export * from './moderation';

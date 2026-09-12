@@ -15,6 +15,8 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
 import type { RequestWithUser } from '../../common/guards/jwt-auth.guard';
 import { AdminService } from './admin.service';
+import { AuditLogService } from './audit-log.service';
+import { ListAuditLogsQueryDto } from './dto/list-audit-logs-query.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { ListAdminUsersQueryDto } from './dto/list-admin-users-query.dto';
 import { ListAdminChannelsQueryDto } from './dto/list-admin-channels-query.dto';
@@ -31,7 +33,10 @@ import { UpdateChannelDto } from '../channels/dto/update-channel.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')
 export class AdminController {
-  constructor(private readonly admin: AdminService) {}
+  constructor(
+    private readonly admin: AdminService,
+    private readonly auditLog: AuditLogService,
+  ) {}
 
   @Get('overview')
   async overview() {
@@ -71,5 +76,15 @@ export class AdminController {
   @Delete('streams/:id')
   async deleteStream(@Param('id') id: string) {
     return { success: true, data: await this.admin.deleteStream(id) };
+  }
+
+  /**
+   * Phase 10 — read-only audit trail. ADMIN-only (class-level @Roles),
+   * paginated, filterable. There is deliberately no endpoint anywhere that
+   * can update or delete an audit row.
+   */
+  @Get('audit-logs')
+  async listAuditLogs(@Query() query: ListAuditLogsQueryDto) {
+    return { success: true, data: await this.auditLog.list(query) };
   }
 }

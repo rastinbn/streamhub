@@ -40,3 +40,6 @@ infrastructure/streaming/hls/
 
 # Docker
 docker-compose.override.yml
+
+# Phase 9 — local object storage runtime data
+.data/

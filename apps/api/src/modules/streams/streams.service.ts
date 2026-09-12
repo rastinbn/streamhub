@@ -82,6 +82,11 @@ export class StreamsService {
       throw new NotFoundException('You do not have a channel yet');
     }
 
+    // Phase 10 — a suspended channel cannot create new streams.
+    if (channel.suspendedAt) {
+      throw new ForbiddenException('This channel is suspended');
+    }
+
     // One live broadcast at a time per channel (see docs/domain-model.md
     // §5 "open items" — this is the service-level enforcement flagged
     // there as not-yet-implemented).
@@ -223,6 +228,10 @@ export class StreamsService {
       where: { streamKeyHash: hashStreamKey(rawKey) },
     });
     if (!stream) return null;
+
+    // Phase 10 — a suspended channel's keys are dead: deny the publish.
+    const owningChannel = await this.prisma.channel.findUnique({ where: { id: stream.channelId } });
+    if (owningChannel?.suspendedAt) return null;
 
     // Idempotent: MediaMTX may re-fire publish notifications; only
     // transition (and stamp startedAt) the first time.

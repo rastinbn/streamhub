@@ -1,10 +1,17 @@
 import { Module } from '@nestjs/common';
+import { ModerationController } from './moderation.controller';
+import { ModerationService } from './moderation.service';
+import { ChatModule } from '../chat/chat.module';
+import { AuthModule } from '../auth/auth.module';
 
 /**
- * Placeholder module for the "moderation" domain.
- * Business logic (controllers, services, DTOs) will be added in a later
- * phase. This module exists now so the application wiring and dependency
- * graph are established from day one.
+ * Phase 10 — platform moderation. Imports ChatModule (for the Redis-backed
+ * ChatModerationService) and AuthModule (TokenService, to revoke a banned
+ * user's sessions). AuditLogService + PrismaService are global.
  */
-@Module({})
+@Module({
+  imports: [ChatModule, AuthModule],
+  controllers: [ModerationController],
+  providers: [ModerationService],
+})
 export class ModerationModule {}

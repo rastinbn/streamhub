@@ -22,6 +22,12 @@ model User {
   bio          String?
   role         Role     @default(USER)
   emailVerified Boolean @default(false)
+  // Phase 10 — Moderation. Set by the admin/moderation ban endpoint; a
+  // banned user cannot log in (enforced in AuthService.login) and their
+  // refresh tokens are revoked at ban time. `banReason` is an internal
+  // moderator note — stripped from every public user payload.
+  bannedAt     DateTime?
+  banReason    String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -30,6 +36,7 @@ model User {
   messages  ChatMessage[]
   notifications Notification[]
   emailVerificationTokens EmailVerificationToken[]
+  submittedReports Report[] @relation("SubmittedReports")
 
   @@map("users")
 }
@@ -69,6 +76,11 @@ model Channel {
   followersCount Int      @default(0)
   ownerId        String   @unique
   owner          User     @relation(fields: [ownerId], references: [id])
+  // Phase 10 — Moderation. A suspended channel cannot create streams, the
+  // MediaMTX publish webhook denies its stream keys, and any live broadcast
+  // is force-ended at suspension time.
+  suspendedAt      DateTime?
+  suspensionReason String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -110,6 +122,7 @@ model Stream {
 
   analytics      StreamAnalytics?
   viewerMetrics  ViewerMetric[]
+  vods           Vod[]
 
   @@index([channelId])
   @@index([status])
@@ -175,6 +188,44 @@ enum StreamStatus {
   ENDED
 }
 
+// Phase 9 — VOD & Content. PUBLIC videos appear in browse/search;
+// UNLISTED are reachable by link but omitted from lists; PRIVATE only for
+// the owner (and admins). See docs/storage.md.
+enum VodVisibility {
+  PUBLIC
+  UNLISTED
+  PRIVATE
+}
+
+// Phase 9 — VOD & Content. Metadata-only table: the video binary lives in
+// object storage (local disk in dev, S3-compatible in prod) and is
+// referenced by `storageKey` — see docs/storage.md for the abstraction.
+// One VOD per finished broadcast; created by the MediaMTX recording
+// webhook, never written by user-facing API routes.
+model Vod {
+  id          String        @id @default(cuid())
+  streamId    String
+  stream      Stream        @relation(fields: [streamId], references: [id], onDelete: SetNull)
+  channelId   String
+  title       String
+  description String?
+  thumbnail   String?
+  // Object-storage key (e.g. "vods/{channelId}/{streamId}/recording.mp4").
+  // Never a full URL — the storage provider resolves it to a playable
+  // URL/download link, so switching providers never rewrites the DB.
+  storageKey  String
+  durationSeconds Int       @default(0)
+  views       Int           @default(0)
+  visibility  VodVisibility @default(PRIVATE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([channelId, createdAt])
+  @@index([visibility, createdAt])
+  @@index([streamId])
+  @@map("vods")
+}
+
 model Follow {
   id           String   @id @default(cuid())
   followerId   String
@@ -236,4 +287,72 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@map("notifications")
+}
+
+// Phase 10 — Moderation & Administration. A user-submitted report about a
+// piece of content or account, triaged by MODERATOR/ADMIN via the admin
+// API. The target is referenced by (targetType, targetId) without a hard
+// FK so reports survive deletion of the reported thing (an audit trail of
+// "this was reported" must not vanish when the offending row does).
+enum ReportTargetType {
+  USER
+  CHANNEL
+  STREAM
+  VOD
+}
+
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  INAPPROPRIATE_CONTENT
+  COPYRIGHT
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
+
+model Report {
+  id            String           @id @default(cuid())
+  reporterId    String
+  reporter      User             @relation("SubmittedReports", fields: [reporterId], references: [id], onDelete: Cascade)
+  targetType    ReportTargetType
+  targetId      String
+  reason        ReportReason
+  description   String?
+  status        ReportStatus     @default(PENDING)
+  reviewedById  String?
+  reviewedAt    DateTime?
+  resolutionNote String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+  @@index([reporterId])
+  @@map("reports")
+}
+
+// Phase 10 — immutable audit trail of every administrative action. Rows are
+// only ever INSERTed (no update/delete API exists), and reads are
+// ADMIN-only. `actorId` is deliberately a bare string with no FK: the trail
+// must survive deletion of the actor account. `targetType`/`targetId`
+// mirror the Report pattern so actions on any domain entity are recordable.
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  action     String
+  targetType String
+  targetId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([targetType, targetId])
+  @@map("audit_logs")
 }

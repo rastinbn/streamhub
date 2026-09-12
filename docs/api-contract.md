@@ -585,6 +585,119 @@ Same `403`/`404` rules as `streams/:streamId`.
 
 ---
 
+## Content (VODs) — `/content` *(Phase 9)*
+
+Recorded streams and creator content. Video binaries live in object storage (local disk in dev, S3-compatible later); these endpoints serve metadata only. See `docs/storage.md` for the storage architecture.
+
+### `GET /content`
+
+Public listing of VODs. Anonymous callers receive `PUBLIC` rows only; an authenticated caller also receives their own `UNLISTED`/`PRIVATE` VODs. Newest first, paginated.
+
+Query: `?page=` (default 1), `?limit=` (default 20, max 50).
+
+```jsonc
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "...",
+        "streamId": "...",          // null if the source stream was deleted
+        "channelId": "...",
+        "title": "Epic broadcast",
+        "description": null,
+        "thumbnail": null,
+        "storageKey": "vods/{channelId}/{streamId}/recording.mp4",
+        "durationSeconds": 5400,
+        "views": 123,
+        "visibility": "PUBLIC",      // PUBLIC | UNLISTED | PRIVATE
+        "playbackUrl": "/api/v1/media/vods/.../recording.mp4",  // provider-resolved
+        "createdAt": "2026-09-12T10:00:00.000Z",
+        "updatedAt": "2026-09-12T10:00:00.000Z"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 20
+  }
+}
+```
+
+### `GET /content/:id`
+
+Single VOD. Visibility rules: `PUBLIC` for everyone; `UNLISTED` reachable by id (omitted from lists); `PRIVATE` only for the owner (or an admin) — others get `404` so existence is not revealed. Each non-owner view increments `views`; owner views never count.
+
+### `PATCH /content/:id` *(owner only)*
+
+JWT required. Body (all optional): `title` (1–200 chars), `description` (≤5000), `thumbnail` (≤2000), `visibility` (`PUBLIC` | `UNLISTED` | `PRIVATE`). `storageKey`, `streamId`, and `views` are never client-editable. Returns `403` for non-owners, `401` unauthenticated, `404` unknown id.
+
+### `DELETE /content/:id` *(owner only)*
+
+JWT required. Removes the metadata row and deletes the stored object best-effort (a storage-delete failure is logged, never surfaced). Returns `403`/`401`/`404` under the same rules as PATCH.
+
+### `POST /content/recordings/completed` *(MediaMTX webhook — not part of the public API)*
+
+Shared-secret guarded (`x-webhook-secret`, same secret as the stream lifecycle hooks). Fired by MediaMTX's `runOnRecordComplete`: copies the finished recording into object storage and creates the VOD row **PRIVATE by default**. Unknown paths / storage failures are acknowledged 2xx and logged for re-ingest — see `docs/storage.md`.
+
+## Media — `/media` *(Phase 9)*
+
+`GET /media/<storageKey>` serves stored objects (dev/local provider) with HTTP Range support (`206 Partial Content`) for video seeking. With an S3-compatible provider, `playbackUrl` becomes a presigned provider URL and this route is bypassed.
+
+---
+
+## Reports — `/reports` *(Phase 10)*
+
+### `POST /reports` — any authenticated user
+
+```json
+{ "targetType": "USER|CHANNEL|STREAM|VOD", "targetId": "…", "reason": "SPAM|HARASSMENT|INAPPROPRIATE_CONTENT|COPYRIGHT|OTHER", "description": "optional, ≤2000 chars" }
+```
+
+Returns the created report (`status: "PENDING"`). Reported `USER` targets are verified to exist at submission; other target types are accepted as opaque ids so a report survives later deletion of the reported entity. Rate-limited like every route.
+
+### `GET /admin/reports` — MODERATOR/ADMIN
+
+Paginated review queue, oldest first. Query filters: `status`, `targetType`, `targetId`, plus standard `page`/`limit`. Items include the reporter (`{ id, username }`) for triage context.
+
+### `GET /admin/reports/:id` — MODERATOR/ADMIN
+
+Single report, 404 for unknown ids.
+
+### `PATCH /admin/reports/:id` — MODERATOR/ADMIN
+
+```json
+{ "status": "PENDING|REVIEWING|RESOLVED|DISMISSED", "resolutionNote": "optional" }
+```
+
+Stamps `reviewedById`/`reviewedAt` from the verified token (never client-supplied) and writes a `report.review` audit entry.
+
+---
+
+## Moderation — `/moderation` *(Phase 10)*
+
+All routes require JWT + `MODERATOR` or `ADMIN` (guard chain `JwtAuthGuard` → `RolesGuard`); anything less is `403` before any handler runs.
+
+| Endpoint | Body | Effect |
+| --- | --- | --- |
+| `POST /moderation/users/:id/ban` | `{ reason? }` | Sets `bannedAt`/`banReason`, revokes all of the user's sessions (refresh tokens die). Login is refused with the same 401 as bad credentials — no ban-status oracle. |
+| `DELETE /moderation/users/:id/ban` | — | Lifts the ban; the user can log in again. |
+| `POST /moderation/channels/:id/suspend` | `{ reason? }` | Sets `suspendedAt`/`suspensionReason`, force-ends live broadcasts (analytics finalized), revokes stream keys. Suspended channels fail stream creation with `403` and their keys are denied at the publish webhook. |
+| `DELETE /moderation/channels/:id/suspend` | — | Lifts the suspension. |
+| `POST /moderation/chat` | `{ action: "timeout\|ban\|unban", channelId, targetUserId, seconds? }` | Platform-moderator chat actions (REST equivalent of the in-chat gateway messages, plus audit). Chat state stays Redis-only (`chat:timeout:` / `chat:ban:` keys). `seconds` required for timeout (1–86400). |
+| `POST /moderation/content/:id/remove` | `{ reason? }` | Flips a `Vod` to `PRIVATE` — hidden from every public surface while preserving the stored object (evidence). Owner deletes (Phase 9) remove the object; moderation removal deliberately does not. |
+
+Guardrails: nobody can ban themselves (`400`); MODERATOR/ADMIN accounts cannot be banned via this endpoint (`403`) — admin state changes go through the admin role endpoint. Double-ban/double-suspend/double-remove are idempotent-failure (`400`).
+
+---
+
+## Admin additions *(Phase 10)*
+
+### `GET /admin/audit-logs` — ADMIN only
+
+Append-only audit trail: `{ actorId, action, targetType, targetId, metadata, createdAt }`, newest first, bounded pagination, filters `actorId` / `action` / `targetType` / `targetId`. Every moderation action and report triage writes an entry. There is deliberately **no API that can update or delete an audit row** — the trail is immutable by construction, and even ADMIN access is read-only.
+
+---
+
 ## Error codes
 
 The `error.code` field is the HTTP status name (e.g. `BAD_REQUEST`, `CONFLICT`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`). `error.message` is safe to show to end users; 500-level errors always return a generic `"Internal server error"` message regardless of the underlying cause (see `AllExceptionsFilter`).

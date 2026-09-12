@@ -15,9 +15,13 @@ import { ChatModule } from './modules/chat/chat.module';
 import { FollowsModule } from './modules/follows/follows.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
+import { ReportsModule } from './modules/reports/reports.module';
+import { AuditLogModule } from './modules/admin/audit-log.service';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { ContentModule } from './modules/content/content.module';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
@@ -31,6 +35,7 @@ import { AdminModule } from './modules/admin/admin.module';
     DatabaseModule,
     RedisModule,
     MailModule,
+    StorageModule,
     HealthModule,
     // Domain modules (placeholders for now, implemented phase by phase):
     AuthModule,
@@ -42,8 +47,11 @@ import { AdminModule } from './modules/admin/admin.module';
     FollowsModule,
     NotificationsModule,
     ModerationModule,
+    ReportsModule,
+    AuditLogModule,
     AnalyticsModule,
     AdminModule,
+    ContentModule,
   ],
   providers: [
     {
