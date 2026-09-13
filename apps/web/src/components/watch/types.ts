@@ -12,7 +12,6 @@ export interface WatchStream {
     avatarUrl: string;
     avatarAlt: string;
     followers: string;
-    verified: boolean;
   };
   category: string;
   tags: string[];
@@ -23,6 +22,8 @@ export interface ChatMessage {
   id: string;
   type: 'mod' | 'subscriber' | 'user' | 'action' | 'notice';
   user?: string;
+  /** Authenticated author id from the backend — used for moderator actions. */
+  userId?: string;
   userColor?: string;
   text: string;
 }

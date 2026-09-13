@@ -12,6 +12,7 @@ import {
 } from 'react';
 import type { UserPublic } from '@streamhub/types';
 import { ApiError, authApi, usersApi } from './api';
+import { registerTokenRefresher } from './api/client';
 
 const REFRESH_TOKEN_STORAGE_KEY = 'streamhub.refreshToken';
 
@@ -62,6 +63,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
   }, []);
+
+  // Wire the API client's 401 auto-refresh: when any authenticated request
+  // fails with an expired access token, the client calls this to rotate the
+  // stored refresh token and get a fresh pair, then replays the request.
+  useEffect(() => {
+    registerTokenRefresher(async () => {
+      const stored = window.localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+      if (!stored) return null;
+      try {
+        const res = await authApi.refresh(stored);
+        persistSession(res.accessToken, res.refreshToken, res.user);
+        return res.accessToken;
+      } catch {
+        clearSession();
+        return null;
+      }
+    });
+    return () => registerTokenRefresher(null);
+  }, [persistSession, clearSession]);
 
   // On first load, try to silently restore a session from the stored
   // refresh token (e.g. after a page refresh). Expired/invalid tokens just

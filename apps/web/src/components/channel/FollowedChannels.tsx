@@ -7,7 +7,7 @@ import { useFollowedChannels } from '@/hooks/useFollowedChannels';
 
 export default function FollowedChannels() {
   const { user, loading: authLoading } = useAuth();
-  const { channels, isLoading, isSupported } = useFollowedChannels();
+  const { channels, isLoading } = useFollowedChannels();
 
   return (
     <div className="mt-6 px-4">
@@ -24,10 +24,6 @@ export default function FollowedChannels() {
           </Link>{' '}
           to see who you follow.
         </p>
-      ) : !isSupported ? (
-        // Honest placeholder — there's no backend support for this yet.
-        // See hooks/useFollowedChannels.ts for exactly what's missing.
-        <p className="px-1 text-xs text-on-surface-variant">Coming soon.</p>
       ) : channels.length === 0 ? (
         <p className="px-1 text-xs text-on-surface-variant">
           You&#39;re not following anyone yet.

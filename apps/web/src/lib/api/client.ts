@@ -31,10 +31,34 @@ interface RequestOptions extends RequestInit {
   accessToken?: string;
 }
 
-export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+/**
+ * Single-flight token refresher, registered by AuthProvider. When a request
+ * fails with 401 (access tokens expire after 15 minutes while a session is
+ * open), the client retries once through the refresh endpoint and replays
+ * the original request with the new token. Concurrent 401s share one refresh
+ * call, which matters because the backend rotates refresh tokens.
+ */
+type TokenRefresher = () => Promise<string | null>;
+let refresher: TokenRefresher | null = null;
+let refreshInFlight: Promise<string | null> | null = null;
+
+export function registerTokenRefresher(fn: TokenRefresher | null): void {
+  refresher = fn;
+}
+
+function refreshTokenOnce(): Promise<string | null> {
+  if (!refreshInFlight) {
+    refreshInFlight = (refresher ? refresher() : Promise.resolve(null)).finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+async function rawRequest(path: string, options: RequestOptions): Promise<Response> {
   const { accessToken, headers, ...rest } = options;
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  return fetch(`${API_BASE_URL}${path}`, {
     ...rest,
     headers: {
       'Content-Type': 'application/json',
@@ -42,7 +66,9 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       ...headers,
     },
   });
+}
 
+async function parseBody<T>(res: Response): Promise<T> {
   const body = (await res.json().catch(() => null)) as ApiResponse<T> | null;
 
   if (!res.ok || !body || !body.success) {
@@ -53,6 +79,24 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   return body.data;
+}
+
+export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  let res = await rawRequest(path, options);
+
+  // Expired access token mid-session: refresh once (single-flight across
+  // concurrent 401s) and replay the original request with the fresh token.
+  // Never retried for the auth endpoints themselves — refreshing there would
+  // recurse, and their 401s are meaningful (bad credentials / bad token).
+  const isAuthRoute = path.startsWith('/auth/');
+  if (res.status === 401 && options.accessToken && !isAuthRoute && refresher) {
+    const newToken = await refreshTokenOnce();
+    if (newToken) {
+      res = await rawRequest(path, { ...options, accessToken: newToken });
+    }
+  }
+
+  return parseBody<T>(res);
 }
 
 /** Builds a query string from a params object, skipping empty/undefined values. */

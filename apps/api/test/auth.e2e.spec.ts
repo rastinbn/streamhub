@@ -246,6 +246,29 @@ describe('Auth & Users (e2e)', () => {
 
       expect(res.body.data.username).toBe('codeninja');
       expect(res.body.data.passwordHash).toBeUndefined();
+      // No channel created yet — the embedded relation is explicitly null,
+      // not missing, so clients can rely on the shape.
+      expect(res.body.data.channel).toBeNull();
+    });
+
+    it('GET /api/v1/users/:username embeds the user\'s channel once they create one', async () => {
+      const { accessToken } = await registerAndLogin();
+
+      await request(app.getHttpServer())
+        .post('/api/v1/channels')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ name: 'Ninja Cave', slug: 'ninja-cave' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/users/codeninja')
+        .expect(200);
+
+      expect(res.body.data.channel).toMatchObject({
+        slug: 'ninja-cave',
+        name: 'Ninja Cave',
+        ownerId: res.body.data.id,
+      });
     });
 
     it('GET /api/v1/users/:username 404s for an unknown username', async () => {

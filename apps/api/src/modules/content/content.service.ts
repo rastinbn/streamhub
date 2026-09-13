@@ -96,13 +96,35 @@ export class ContentService {
 
   /**
    * `GET /content` — PUBLIC VODs for everyone; the caller's own UNLISTED +
-   * PRIVATE VODs included when authenticated. One indexed query + one
+   * PRIVATE VODs included when authenticated. `mine=true` (dashboard scope,
+   * caller id guaranteed present by the controller) restricts to ONLY the
+   * caller's own VODs across all visibilities. One indexed query + one
    * count, paginated — no unbounded scans.
    */
-  async list(opts: { requesterId?: string; page: number; limit: number }) {
-    const where: Record<string, unknown> = opts.requesterId
-      ? { OR: [{ visibility: 'PUBLIC' }, { channel: { ownerId: opts.requesterId } }] }
-      : { visibility: 'PUBLIC' };
+  async list(opts: { requesterId?: string; page: number; limit: number; mine?: boolean }) {
+    // `Vod` has no `channel` relation (scalar `channelId` only), so ownership
+    // filters resolve the caller's channel id first — one unique-index
+    // lookup, then one indexed vods query (`@@index([channelId, createdAt])`).
+    let ownChannelId: string | null = null;
+    if (opts.requesterId) {
+      const channel = await this.prisma.channel.findUnique({
+        where: { ownerId: opts.requesterId },
+        select: { id: true },
+      });
+      ownChannelId = channel?.id ?? null;
+    }
+
+    let where: Record<string, unknown>;
+    if (opts.mine) {
+      where = { channelId: ownChannelId };
+    } else if (opts.requesterId) {
+      // No channel → nothing of the caller's to include; PUBLIC only.
+      where = ownChannelId
+        ? { OR: [{ visibility: 'PUBLIC' }, { channelId: ownChannelId }] }
+        : { visibility: 'PUBLIC' };
+    } else {
+      where = { visibility: 'PUBLIC' };
+    }
 
     const [rows, total] = await Promise.all([
       this.prisma.vod.findMany({

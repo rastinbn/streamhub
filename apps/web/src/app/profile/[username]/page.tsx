@@ -85,17 +85,47 @@ export default async function UserProfilePage({ params }: PageProps) {
       </div>
 
       <div className="mt-lg rounded-2xl border border-outline-variant/30 bg-surface-container-low p-lg">
-        <p className="font-body-sm text-body-sm leading-relaxed text-on-surface-variant">
-          This profile surfaces the public fields of <span className="font-semibold text-on-surface">@{user.username}</span>.
-          Followed channels and current broadcasts will appear here once the full channel profile
-          page is built.
-        </p>
-        <Link
-          href="/browse"
-          className="mt-md inline-block rounded-lg bg-primary px-4 py-2 font-label-md text-label-md font-bold text-on-primary shadow-sm transition-transform active:scale-95"
-        >
-          Browse live streams
-        </Link>
+        {user.channel ? (
+          <div className="flex flex-col gap-md sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-md">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={user.channel.avatar ?? PLACEHOLDER_AVATAR}
+                alt=""
+                width={56}
+                height={56}
+                loading="lazy"
+                decoding="async"
+                className="h-14 w-14 shrink-0 rounded-full object-cover"
+              />
+              <div className="min-w-0">
+                <p className="truncate font-headline-sm text-headline-sm text-on-surface">{user.channel.name}</p>
+                <p className="font-body-sm text-body-sm text-on-surface-variant">
+                  {user.channel.followersCount} {user.channel.followersCount === 1 ? 'follower' : 'followers'}
+                  {user.channel.category ? ` · ${user.channel.category}` : ''}
+                </p>
+              </div>
+            </div>
+            <Link
+              href={`/channel/${user.channel.slug}`}
+              className="shrink-0 rounded-lg bg-primary px-4 py-2 text-center font-label-md text-label-md font-bold text-on-primary shadow-sm transition-transform active:scale-95"
+            >
+              Visit channel
+            </Link>
+          </div>
+        ) : (
+          <>
+            <p className="font-body-sm text-body-sm leading-relaxed text-on-surface-variant">
+              <span className="font-semibold text-on-surface">@{user.username}</span> hasn&apos;t created a channel yet.
+            </p>
+            <Link
+              href="/browse"
+              className="mt-md inline-block rounded-lg bg-primary px-4 py-2 font-label-md text-label-md font-bold text-on-primary shadow-sm transition-transform active:scale-95"
+            >
+              Browse live streams
+            </Link>
+          </>
+        )}
       </div>
     </main>
   );

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
+  ChatClientEvents,
   ChatHistoryPayload,
   ChatMessagePayload,
   ChatSystemPayload,
@@ -20,6 +21,7 @@ function mapMessage(payload: ChatMessagePayload): ChatMessage {
     type,
     user: payload.username,
     text: payload.content,
+    userId: payload.userId,
   };
 }
 
@@ -46,13 +48,30 @@ function mergeUnique(prev: ChatMessage[], next: ChatMessage[]): ChatMessage[] {
 }
 
 export function useWatchChat(streamId: string | undefined) {
-  const { accessToken } = useAuth();
+  const { accessToken, user } = useAuth();
   const [status, setStatus] = useState<ChatConnectionState>('idle');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [liveViewerCount, setLiveViewerCount] = useState<number | null>(null);
   const [liveFollowersCount, setLiveFollowersCount] = useState<number | null>(null);
   const socketRef = useRef<ChatSocket | null>(null);
+
+  /** The signed-in viewer may moderate when the gateway says they can
+   * (channel owner, MODERATOR or ADMIN — see ChatGateway.canModerate). */
+  const canModerate =
+    !!user && (user.role === 'MODERATOR' || user.role === 'ADMIN' || user.role === 'STREAMER');
+
+  const emit = useCallback(
+    <E extends keyof ChatClientEvents>(event: E, payload: ChatClientEvents[E]): boolean => {
+      const socket = socketRef.current;
+      if (!socket || !socket.connected || status !== 'connected') return false;
+      // socket.io-client's overloads are tuple-based; the ChatClientEvents map
+      // models payloads directly, so bridge with one precise cast.
+      (socket.emit as (e: E, p: ChatClientEvents[E]) => void)(event, payload);
+      return true;
+    },
+    [status],
+  );
 
   useEffect(() => {
     const token = accessToken;
@@ -154,6 +173,23 @@ export function useWatchChat(streamId: string | undefined) {
     [streamId, status],
   );
 
+  /** Moderator actions (gateway re-checks permission server-side). */
+  const timeoutUser = useCallback(
+    (targetUserId: string, seconds: number) =>
+      streamId ? emit('chat:timeout', { streamId, targetUserId, seconds }) : false,
+    [emit, streamId],
+  );
+  const banUser = useCallback(
+    (targetUserId: string) =>
+      streamId ? emit('chat:ban', { streamId, targetUserId }) : false,
+    [emit, streamId],
+  );
+  const unbanUser = useCallback(
+    (targetUserId: string) =>
+      streamId ? emit('chat:unban', { streamId, targetUserId }) : false,
+    [emit, streamId],
+  );
+
   return {
     status,
     messages,
@@ -161,7 +197,11 @@ export function useWatchChat(streamId: string | undefined) {
     liveViewerCount,
     liveFollowersCount,
     requiresAuth: !accessToken,
+    canModerate,
     send,
+    timeoutUser,
+    banUser,
+    unbanUser,
     clearError: () => setErrorMessage(null),
   };
 }
