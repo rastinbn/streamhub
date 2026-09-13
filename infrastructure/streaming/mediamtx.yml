@@ -24,10 +24,12 @@
 # `POST /api/v1/streams` (or `.../rotate-key`) — e.g. OBS server
 # `rtmp://localhost:1935/<streamKey>`.
 #
-# `${MEDIAMTX_API_URL}` / `${MEDIAMTX_WEBHOOK_SECRET}` are read from the
-# container's environment (see `docker-compose.yml`) with sane local-dev
-# defaults baked in via `:-` below, so this file needs no edits to run
-# out of the box.
+# `$MEDIAMTX_API_URL` / `$MEDIAMTX_WEBHOOK_SECRET` are read from the
+# container's environment (see `docker-compose.yml`, which applies the
+# local-dev defaults there) and expanded by the hook's shell at runtime.
+# MediaMTX does NOT support bash-style `:-default` fallbacks and its own
+# `${...}` pre-substitution leaves unknown names empty in 1.20.x — hence the
+# plain shell-style `$VAR` references used below.
 #
 # Note: these hooks *notify* the API; they do not themselves block an
     # unrecognized/revoked key from publishing at the RTMP level (MediaMTX's
@@ -81,21 +83,25 @@ paths:
   all_others:
     source: publisher
 
-    # Fired when a source starts actually providing the stream (OBS sending
-    # RTMP data). `-o /dev/null` and no `2>&1` propagation: a slow/unreachable
+# Fired when a source starts actually providing the stream (OBS sending
+    # RTMP data). `-O /dev/null` and no `2>&1` propagation: a slow/unreachable
     # API must never be allowed to block or fail the RTMP session itself.
+    # busybox `wget` (heavier curl is not available in the minimal runtime
+    # image); flags: quiet, timeout 5s, POST body = the stream key.
+    #
+    # NOTE: reference container env vars shell-style (`$MTX_ENV`), NOT
+    # MediaMTX-style `${...}` — MediaMTX expands `${...}` against its config
+    # keys at load time and leaves them empty for unknown names in 1.20.x.
     runOnOnline: >
-      curl -s -o /dev/null -m 5 -X POST
-      "${MEDIAMTX_API_URL:-http://host.docker.internal:4000}/api/v1/streams/webhooks/mediamtx/publish"
-      -H "Content-Type: application/json"
-      -H "x-webhook-secret: ${MEDIAMTX_WEBHOOK_SECRET:-dev-mediamtx-secret}"
-      -d "{\"streamKey\":\"$MTX_PATH\"}"
+      wget -q -O /dev/null -T 5 --post-data='{"streamKey":"$MTX_PATH"}'
+      --header="Content-Type: application/json"
+      --header="x-webhook-secret: $MEDIAMTX_WEBHOOK_SECRET"
+      "$MEDIAMTX_API_URL/api/v1/streams/webhooks/mediamtx/publish"
 
     # Fired when the source stops providing the stream (OBS closed, network
     # drop, ...).
     runOnOffline: >
-      curl -s -o /dev/null -m 5 -X POST
-      "${MEDIAMTX_API_URL:-http://host.docker.internal:4000}/api/v1/streams/webhooks/mediamtx/unpublish"
-      -H "Content-Type: application/json"
-      -H "x-webhook-secret: ${MEDIAMTX_WEBHOOK_SECRET:-dev-mediamtx-secret}"
-      -d "{\"streamKey\":\"$MTX_PATH\"}"
+      wget -q -O /dev/null -T 5 --post-data='{"streamKey":"$MTX_PATH"}'
+      --header="Content-Type: application/json"
+      --header="x-webhook-secret: $MEDIAMTX_WEBHOOK_SECRET"
+      "$MEDIAMTX_API_URL/api/v1/streams/webhooks/mediamtx/unpublish"

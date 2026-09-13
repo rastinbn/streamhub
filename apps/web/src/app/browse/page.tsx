@@ -1,9 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import StreamCard, { StreamCardProps } from '@/components/streams/StreamCard';
+import CategoryCard from '@/components/channel/CategoryCard';
 import { useStreams } from '@/hooks/useStreams';
 import { usePaginatedStreams } from '@/hooks/usePaginatedStreams';
+import { useCategories } from '@/hooks/useCategories';
 import type { StreamListQuery } from '@/lib/api';
 import { MISSING_NAME, PLACEHOLDER_ALT, PLACEHOLDER_AVATAR, PLACEHOLDER_THUMBNAIL, UNTITLED } from '@/lib/placeholders';
 import type { StreamPublic } from '@streamhub/types';
@@ -97,6 +100,9 @@ export default function Browse() {
   const { streams, total, hasMore, isLoading, isLoadingMore, isError, error, loadMore } =
     usePaginatedStreams(query);
 
+  // Mobile "Top Categories" preview grid.
+  const { categories } = useCategories();
+
   // Header count of live streams — a separate, lightweight call for `total`.
   const { total: liveTotal } = useStreams({ limit: 1 }, { liveOnly: true });
 
@@ -127,7 +133,7 @@ export default function Browse() {
   const currentSortLabel = SORT_OPTIONS.find((o) => o.key === sortBy)?.label;
 
   return (
-    <div className="mx-auto w-full max-w-[1920px] flex-1 p-md pt-16 md:p-lg md:pt-0 lg:p-xl">
+    <div className="mx-auto w-full max-w-[1920px] flex-1 p-md md:p-lg lg:p-xl">
       {/* Header */}
       <div className="mb-lg flex flex-col gap-md justify-between md:mb-xl md:flex-row md:items-end">
         <div>
@@ -189,7 +195,7 @@ export default function Browse() {
       </div>
 
       {/* Filter chips */}
-      <div className="no-scrollbar mb-lg w-full overflow-x-auto pb-sm">
+      <div className="no-scrollbar sticky top-16 z-20 mb-lg w-full overflow-x-auto bg-background pb-sm md:static">
         <div className="flex min-w-max items-center gap-sm">
           {FILTERS.map((filter) => {
             const isActive = activeFilter === filter.id;
@@ -216,7 +222,41 @@ export default function Browse() {
         </div>
       </div>
 
+      {/* Top Categories — mobile only */}
+      {categories.length > 0 && (
+        <div className="mb-lg md:hidden">
+          <div className="mb-sm flex items-center justify-between">
+            <h2 className="font-headline-md text-headline-md text-on-surface">Top Categories</h2>
+            <Link
+              href="/categories"
+              className="font-label-md text-label-md font-bold text-primary transition-colors hover:text-primary-fixed"
+            >
+              See all
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 gap-md">
+            {categories.slice(0, 6).map((category) => (
+              <CategoryCard
+                key={category.id}
+                name={category.name}
+                badge="Category"
+                viewers={MISSING_NAME}
+                liveChannels={MISSING_NAME}
+                image={category.thumbnail ?? PLACEHOLDER_THUMBNAIL}
+                alt={PLACEHOLDER_ALT}
+                href={category.slug ? `/categories/${category.slug}` : undefined}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Stream grid */}
+      {visibleCards.length > 0 && (
+        <h2 className="mb-sm font-headline-md text-headline-md text-on-surface md:hidden">
+          Recommended Live Streams
+        </h2>
+      )}
       {isLoading && visibleCards.length === 0 ? (
         <p className="text-body-sm text-on-surface-variant">Loading streams…</p>
       ) : isError && visibleCards.length === 0 ? (
