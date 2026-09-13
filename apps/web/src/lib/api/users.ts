@@ -4,11 +4,12 @@ import type {
   ChannelPublic,
   PaginatedResult,
   UpdateProfileInput,
+  UserProfile,
   UserPublic,
 } from '@streamhub/types';
 
 export const usersApi = {
-  getProfile: (username: string) => request<UserPublic>(`/users/${encodeURIComponent(username)}`),
+  getProfile: (username: string) => request<UserProfile>(`/users/${encodeURIComponent(username)}`),
 
   updateProfile: (accessToken: string, input: UpdateProfileInput) =>
     request<UserPublic>('/users/me', {

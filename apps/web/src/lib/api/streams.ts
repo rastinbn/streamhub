@@ -27,6 +27,10 @@ export const streamsApi = {
 
   getById: (id: string) => request<StreamPublic>(`/streams/${id}`),
 
+  /** The caller's own streams (dashboard scope) — requires auth. */
+  listMine: (accessToken: string, query: PageQuery = {}) =>
+    request<PaginatedResult<StreamPublic>>(`/streams/mine${buildQuery(query)}`, { accessToken }),
+
   getStatus: (id: string) => request<StreamStatusView>(`/streams/${id}/status`),
 
   create: (accessToken: string, input: CreateStreamInput) =>
@@ -44,4 +48,8 @@ export const streamsApi = {
 
   revokeKey: (accessToken: string, id: string) =>
     request<StreamPublic>(`/streams/${id}/revoke-key`, { method: 'POST', accessToken }),
+
+  /** Owner action — ends the caller's own live broadcast immediately. */
+  end: (accessToken: string, id: string) =>
+    request<StreamPublic>(`/streams/${id}/end`, { method: 'POST', accessToken }),
 };

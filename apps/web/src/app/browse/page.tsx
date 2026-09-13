@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import StreamCard, { StreamCardProps } from '@/components/streams/StreamCard';
 import { useStreams } from '@/hooks/useStreams';
 import { usePaginatedStreams } from '@/hooks/usePaginatedStreams';
@@ -16,6 +18,7 @@ import {
   Sparkles,
   Check,
   ArrowUpDown,
+  X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -62,9 +65,10 @@ function toCard(stream: StreamPublic): StreamCardProps {
   };
 }
 
-function buildQuery(activeFilter: FilterId, sortBy: SortKey): StreamListQuery {
+function buildQuery(activeFilter: FilterId, sortBy: SortKey, search: string | undefined): StreamListQuery {
   const query: StreamListQuery = {};
 
+  if (search) query.search = search;
   if (activeFilter === 'live') query.status = 'LIVE';
   if (activeFilter === 'most-viewed') {
     query.sortBy = 'viewerCount';
@@ -88,12 +92,46 @@ function buildQuery(activeFilter: FilterId, sortBy: SortKey): StreamListQuery {
 }
 
 export default function Browse() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto w-full max-w-[1920px] flex-1 p-md pt-16 md:p-lg md:pt-0 lg:p-xl">
+          <p className="text-body-sm text-on-surface-variant">Loading streams…</p>
+        </div>
+      }
+    >
+      <BrowseContent />
+    </Suspense>
+  );
+}
+
+function BrowseContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // `?q=` comes from the TopNav search box (and stays shareable/bookmarkable);
+  // the backend matches it against stream titles.
+  const searchQuery = searchParams.get('q')?.trim() || undefined;
+
   const [activeFilter, setActiveFilter] = useState<FilterId>('all');
   const [sortBy, setSortBy] = useState<SortKey>('viewers-desc');
   const [sortOpen, setSortOpen] = useState(false);
+  const [searchDraft, setSearchDraft] = useState(searchQuery ?? '');
   const sortRef = useRef<HTMLDivElement>(null);
 
-  const query = useMemo(() => buildQuery(activeFilter, sortBy), [activeFilter, sortBy]);
+  // Keep the in-page box in sync when the URL changes (nav from TopNav).
+  useEffect(() => {
+    setSearchDraft(searchQuery ?? '');
+  }, [searchQuery]);
+
+  function applySearch(value: string) {
+    const trimmed = value.trim();
+    router.push(trimmed ? `/browse?q=${encodeURIComponent(trimmed)}` : '/browse');
+  }
+
+  const query = useMemo(
+    () => buildQuery(activeFilter, sortBy, searchQuery),
+    [activeFilter, sortBy, searchQuery],
+  );
   const { streams, total, hasMore, isLoading, isLoadingMore, isError, error, loadMore } =
     usePaginatedStreams(query);
 
@@ -143,7 +181,36 @@ export default function Browse() {
           </p>
         </div>
 
-        {/* Sort dropdown */}
+        {/* Search (server-side via GET /streams?search=) + sort dropdown */}
+        <div className="flex w-full flex-col gap-sm md:w-auto md:flex-row md:items-center">
+          <form
+            role="search"
+            className="relative md:w-64"
+            onSubmit={(e) => {
+              e.preventDefault();
+              applySearch(searchDraft);
+            }}
+          >
+            <input
+              type="search"
+              value={searchDraft}
+              onChange={(e) => setSearchDraft(e.target.value)}
+              aria-label="Search streams"
+              placeholder="Search streams…"
+              className="w-full rounded-lg border border-outline-variant bg-surface px-md py-sm text-body-sm font-body-sm text-on-surface placeholder:text-outline transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            {searchDraft && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => applySearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-outline transition-colors hover:text-on-surface"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </form>
+
         <div ref={sortRef} className="relative w-full md:w-auto">
           <button
             type="button"
@@ -186,7 +253,19 @@ export default function Browse() {
             </ul>
           )}
         </div>
+        </div>
       </div>
+
+      {/* Active search indicator */}
+      {searchQuery && (
+        <p className="-mt-md mb-lg text-body-sm text-on-surface-variant">
+          Results for <strong className="font-semibold text-on-surface">“{searchQuery}”</strong>{' '}
+          ({total}) —{' '}
+          <Link href="/browse" className="text-primary hover:underline">
+            clear
+          </Link>
+        </p>
+      )}
 
       {/* Filter chips */}
       <div className="no-scrollbar mb-lg w-full overflow-x-auto pb-sm">
@@ -230,7 +309,9 @@ export default function Browse() {
         <div className="flex flex-col items-center justify-center gap-sm rounded-lg border border-dashed border-outline-variant py-2xl text-center">
           <Radio className="h-8 w-8 text-outline" />
           <p className="text-body-md font-body-md text-on-surface-variant">
-            Nothing live right now — check back soon.
+            {searchQuery
+              ? `No streams match “${searchQuery}”.`
+              : 'Nothing live right now — check back soon.'}
           </p>
         </div>
       ) : (

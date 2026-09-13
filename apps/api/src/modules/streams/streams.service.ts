@@ -1,21 +1,56 @@
-import { ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import type { StreamPublic, StreamStatusView, StreamWithKey } from '@streamhub/types';
 import { PrismaService } from '../../database/prisma.service';
+import { getSecret } from '../../common/config/secrets';
 import { toPublicStream } from '../../common/mappers';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { generateStreamKey, hashStreamKey } from './stream-key.util';
+
+/**
+ * MediaMTX Control API poll interval. The reconciler is the sole authority
+ * for LIVE/ENDED transitions (see reconcileLiveState) — 5s keeps the public
+ * watch page responsive without hammering the Control API.
+ */
+const MEDIAMTX_RECONCILE_INTERVAL_MS = 5_000;
 import { CreateStreamDto } from './dto/create-stream.dto';
 import { UpdateStreamDto } from './dto/update-stream.dto';
 import { ListStreamsQueryDto } from './dto/list-streams-query.dto';
 
 @Injectable()
-export class StreamsService {
+export class StreamsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(StreamsService.name);
+  private reconcileTimer?: NodeJS.Timeout;
+  private reconciling = false;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly analytics: AnalyticsService,
   ) {}
+
+  /**
+   * Drives the MediaMTX reconciler timer (dev/prod only — e2e tests call
+   * `reconcileWithPaths` directly and never race a live timer).
+   */
+  onModuleInit() {
+    if (process.env.NODE_ENV === 'test') return;
+    this.reconcileTimer = setInterval(() => {
+      void this.reconcileLiveState().catch((err) =>
+        this.logger.warn(`MediaMTX reconcile failed: ${err instanceof Error ? err.message : String(err)}`),
+      );
+    }, MEDIAMTX_RECONCILE_INTERVAL_MS);
+  }
+
+  onModuleDestroy() {
+    if (this.reconcileTimer) clearInterval(this.reconcileTimer);
+  }
 
   /**
    * Browse/search streams — deliberately NOT cached. `status`/`viewerCount`
@@ -69,6 +104,38 @@ export class StreamsService {
   async listLive(query: ListStreamsQueryDto) {
     query.status = 'LIVE';
     return this.list(query);
+  }
+
+  /**
+   * `GET /streams/mine` — the caller's own streams, newest first (dashboard
+   * broadcast-tools scope). Includes the channel join so the client can
+   * build watch links, and live viewer counts the same way the public list
+   * does. No suspended-channel check: a suspended streamer can still see
+   * their history, they just can't create/publish.
+   */
+  async listMine(requesterId: string, query: { page?: number; limit?: number }) {
+    const page = query.page ?? 1;
+    const limit = Math.min(query.limit ?? 20, 50);
+    const channel = await this.prisma.channel.findUnique({ where: { ownerId: requesterId } });
+    if (!channel) {
+      return { items: [], total: 0, page, limit };
+    }
+
+    const where: Record<string, unknown> = { channelId: channel.id };
+    const [items, total] = await Promise.all([
+      this.prisma.stream.findMany({
+        where,
+        include: { channel: { select: { slug: true, name: true, avatar: true } } },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.stream.count({ where }),
+    ]);
+
+    const publicStreams = items.map((s: unknown) => toPublicStream(s as { streamKeyHash: unknown }));
+    await this.applyLiveViewerCounts(publicStreams);
+    return { items: publicStreams, total, page, limit };
   }
 
   /**
@@ -169,6 +236,41 @@ export class StreamsService {
   }
 
   /**
+   * Owner action — ends the caller's own live broadcast immediately, exactly
+   * like the MediaMTX unpublish webhook does: status → ENDED, `endedAt`
+   * stamped, analytics session finalized. OBS may still be publishing for a
+   * few seconds afterwards; when it disconnects, the unpublish webhook fires
+   * and is a no-op for an already-ENDED stream (idempotent by design).
+   * Idempotency of the endpoint itself: ending a non-LIVE stream is a 409,
+   * not a silent no-op, so a double-click can't mask a real state bug.
+   */
+  async endStream(id: string, requesterId: string): Promise<StreamPublic> {
+    const stream = await this.getOwnedStreamOrThrow(id, requesterId);
+    if (stream.status !== 'LIVE') {
+      throw new ConflictException('Only live streams can be ended');
+    }
+
+    const endedAt = new Date();
+    const updated = await this.prisma.stream.update({
+      where: { id: stream.id },
+      data: { status: 'ENDED', endedAt },
+    });
+
+    if (updated.startedAt) {
+      await this.fireAnalytics(() =>
+        this.analytics.registerStreamEnd({
+          id: updated.id,
+          channelId: updated.channelId,
+          startedAt: updated.startedAt as Date,
+          endedAt: updated.endedAt as Date,
+        }),
+      );
+    }
+
+    return toPublicStream(updated);
+  }
+
+  /**
    * Issues a brand-new stream key, invalidating any previous one. The raw
    * key is returned exactly once — the caller (channel owner) must copy it
    * into OBS immediately; only its hash is retrievable from then on.
@@ -220,6 +322,115 @@ export class StreamsService {
     }
 
     return toPublicStream(updated);
+  }
+
+  // ---------------------------------------------------------------------
+  // MediaMTX integration (v1.20.x — native, no exec hooks)
+  // ---------------------------------------------------------------------
+
+  /**
+   * Publish authorization delegated from MediaMTX via `authMethod: http`
+   * (see infrastructure/streaming/mediamtx.yml). MediaMTX POSTs one payload
+   * per action and allows the action on any 2xx response.
+   *
+   *  - `publish`: the RTMP path IS the raw stream key — it must hash to a
+   *    known, non-revoked `Stream.streamKeyHash` whose channel isn't
+   *    suspended. This is real ingest enforcement: unknown/revoked keys and
+   *    suspended channels are blocked at the RTMP level, not just reported.
+   *  - `api` / `metrics` / `pprof`: the Control API and diagnostics —
+   *    allowed only with the shared webhook secret as the password.
+   *  - `read` / `playback`: HLS viewers. Fine-grained viewer authorization
+   *    is the app's job (watch gate); MediaMTX only needs to serve paths
+   *    that are actually publishing.
+   */
+  async authorize(action: string, path: string | null, password: string | null): Promise<boolean> {
+    if (action === 'publish') {
+      if (!path) return false;
+      const stream = await this.prisma.stream.findUnique({
+        where: { streamKeyHash: hashStreamKey(path) },
+      });
+      if (!stream) return false;
+      const channel = await this.prisma.channel.findUnique({ where: { id: stream.channelId } });
+      return !channel?.suspendedAt;
+    }
+
+    if (action === 'api' || action === 'metrics' || action === 'pprof') {
+      return password === getSecret('MEDIAMTX_WEBHOOK_SECRET', 'dev-mediamtx-secret');
+    }
+
+    return true;
+  }
+
+  /**
+   * MediaMTX has no shell/curl in its official image and v1.x removed the
+   * old runOnPublish/runOnUnpublish exec hooks, so the API discovers
+   * publishes by polling the Control API: every ready path is a live
+   * broadcast. Transitions reuse `handlePublish` / the shared finalize path
+   * exactly — there is no second copy of the LIVE/ENDED logic.
+   *
+   * Streams with a null `streamKeyHash` (seeded demo rows, revoked keys)
+   * are never touched: they aren't real broadcast sessions.
+   */
+  async reconcileLiveState(): Promise<void> {
+    if (this.reconciling) return;
+    this.reconciling = true;
+    try {
+      const readyPaths = await this.fetchReadyPaths();
+      if (readyPaths !== null) {
+        await this.reconcileWithPaths(readyPaths);
+      }
+    } finally {
+      this.reconciling = false;
+    }
+  }
+
+  /** Reconcile against a known set of ready MediaMTX paths (testable core). */
+  async reconcileWithPaths(readyPaths: string[]): Promise<void> {
+    // Started: a ready path whose key we know goes (or stays) LIVE.
+    // handlePublish is idempotent for already-LIVE streams.
+    for (const path of readyPaths) {
+      await this.handlePublish(path);
+    }
+
+    // Ended: LIVE streams whose key is no longer publishing.
+    const readyHashes = new Set(readyPaths.map((p) => hashStreamKey(p)));
+    const liveStreams = await this.prisma.stream.findMany({ where: { status: 'LIVE' } });
+    for (const stream of liveStreams) {
+      if (stream.streamKeyHash && !readyHashes.has(stream.streamKeyHash)) {
+        await this.finalizeUnpublish(stream);
+      }
+    }
+  }
+
+  /** Reads ready paths from the MediaMTX Control API; null = unreachable. */
+  private async fetchReadyPaths(): Promise<string[] | null> {
+    const base = process.env.MEDIAMTX_API_URL ?? 'http://localhost:9997';
+    const secret = getSecret('MEDIAMTX_WEBHOOK_SECRET', 'dev-mediamtx-secret');
+    try {
+      const res = await fetch(`${base}/v3/paths/list`, {
+        method: 'GET',
+        headers: {
+          // MediaMTX forwards these as user/password in the auth callback,
+          // where `authorize` admits `api` actions carrying the secret.
+          Authorization: `Basic ${Buffer.from(`streamhub:${secret}`).toString('base64')}`,
+        },
+        signal: AbortSignal.timeout(4_000),
+      });
+      if (!res.ok) {
+        this.logger.warn(`MediaMTX Control API returned ${res.status} for /v3/paths/list`);
+        return null;
+      }
+      const body = (await res.json()) as { items?: Array<{ name?: unknown; ready?: unknown }> };
+      const items = Array.isArray(body.items) ? body.items : [];
+      return items
+        .filter((p) => p.ready === true && typeof p.name === 'string' && p.name.length > 0)
+        .map((p) => p.name as string);
+    } catch (err) {
+      this.logger.warn(
+        `MediaMTX Control API unreachable at ${base}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return null;
+    }
   }
 
   /**
@@ -276,6 +487,24 @@ export class StreamsService {
     if (!stream || stream.status !== 'LIVE') {
       return stream ? toPublicStream(stream) : null;
     }
+    await this.finalizeUnpublish(stream);
+    const refreshed = await this.prisma.stream.findUnique({ where: { id: stream.id } });
+    return refreshed ? toPublicStream(refreshed) : toPublicStream(stream);
+  }
+
+  /**
+   * Shared end-of-broadcast path for the unpublish webhook AND the
+   * MediaMTX reconciler: status → ENDED, `endedAt` stamped, analytics
+   * session finalized exactly like an owner-end would.
+   */
+  private async finalizeUnpublish(stream: {
+    id: string;
+    channelId: string;
+    status: string;
+    startedAt: Date | null;
+    endedAt: Date | null;
+  }): Promise<void> {
+    if (stream.status !== 'LIVE') return;
 
     const endedAt = new Date();
     const updated = await this.prisma.stream.update({
@@ -294,8 +523,6 @@ export class StreamsService {
         }),
       );
     }
-
-    return toPublicStream(updated);
   }
 
   /**

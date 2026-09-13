@@ -209,8 +209,10 @@ enum VodVisibility {
 // webhook, never written by user-facing API routes.
 model Vod {
   id          String        @id @default(cuid())
-  streamId    String
-  stream      Stream        @relation(fields: [streamId], references: [id], onDelete: SetNull)
+  // Nullable: the source stream row can be hard-deleted (admin panel) while
+  // the recording itself is kept — the relation is ON DELETE SET NULL.
+  streamId    String?
+  stream      Stream?       @relation(fields: [streamId], references: [id], onDelete: SetNull)
   channelId   String
   title       String
   description String?

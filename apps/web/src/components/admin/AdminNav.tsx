@@ -9,6 +9,7 @@ const LINKS = [
   { href: '/admin/channels', label: 'Channels' },
   { href: '/admin/streams', label: 'Streams' },
   { href: '/admin/categories', label: 'Categories' },
+  { href: '/admin/reports', label: 'Reports' },
 ];
 
 const activeClasses =

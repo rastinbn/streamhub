@@ -18,10 +18,10 @@ import { useCategories } from '@/hooks/useCategories';
 import { useAuth } from '@/lib/auth-context';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { isSafeImageSrc } from '@/lib/security';
-import { HLS_BASE_URL } from '@/lib/hls';
+import { HLS_BASE_URL, RTMP_BASE_URL } from '@/lib/hls';
 import type { ChannelPublic, StreamWithKey } from '@streamhub/types';
 
-const RTMP_URL = process.env.NEXT_PUBLIC_RTMP_URL ?? 'rtmp://localhost:1935';
+const RTMP_URL = RTMP_BASE_URL;
 
 type Step = 'channel' | 'form' | 'ready';
 

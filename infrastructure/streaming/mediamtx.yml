@@ -1,41 +1,38 @@
-# StreamHub - MediaMTX configuration
+# StreamHub - MediaMTX configuration (MediaMTX v1.20.x)
 #
 # Responsibilities of this file:
 #   - Accept RTMP publish connections from OBS (ingest)
 #   - Serve HLS / Low-Latency HLS to the web player (playback)
-#   - Notify the NestJS API when a publish starts/stops (Phase 5)
+#   - Delegate publish authorization to the NestJS API (see `authMethod` below)
 #
 # This server remains isolated from the NestJS API's business logic — it
-# never validates users/channels/roles itself. The only integration point is
-# the pair of HTTP callbacks below (`runOnOnline` / `runOnOffline`),
-# which simply forward "a publish started/stopped on path X" to the API so
-# `Stream.status` can be kept in sync. The API is the one that decides what
-# that means (looking `X` up as a stream key hash, flipping OFFLINE/LIVE/
-# ENDED, stamping startedAt/endedAt) — see
-# `apps/api/src/modules/streams/streams.{service,controller}.ts`.
+# never validates users/channels/roles itself. The API is the authority:
 #
-# NOTE: newer MediaMTX images renamed the old `runOnPublish` /
-# `runOnUnpublish` hooks to `runOnOnline` / `runOnOffline`. `runOnOnline`
-# fires when a source actually starts providing the stream (OBS is live) and
-# `runOnOffline` fires when it stops — both still expose `$MTX_PATH`.
+#   PUBLISH AUTHORIZATION (authMethod: http)
+#     Every publish attempt makes MediaMTX POST to the API's auth webhook
+#     with `{action: "publish", path: "<streamKey>", ...}`. The API looks
+#     the path up as a stream key (SHA-256 hash) and answers 20x = allow,
+#     otherwise deny. Unknown/revoked keys and suspended channels are
+#     therefore blocked at the RTMP level, not just cosmetically.
 #
-# `$MTX_PATH` is substituted by MediaMTX with the RTMP path OBS published
-# to, which under `all_others` is exactly the stream key issued by
-# `POST /api/v1/streams` (or `.../rotate-key`) — e.g. OBS server
-# `rtmp://localhost:1935/<streamKey>`.
+#     The `?secret=` query parameter on the auth URL authenticates the
+#     callback itself (MediaMtxWebhookGuard) and must match
+#     MEDIAMTX_WEBHOOK_SECRET on the API side. To change it, override the
+#     whole URL with the MTX_AUTHHTTPADDRESS environment variable — MediaMTX
+#     does NOT interpolate ${...} inside this file.
 #
-# `${MEDIAMTX_API_URL}` / `${MEDIAMTX_WEBHOOK_SECRET}` are read from the
-# container's environment (see `docker-compose.yml`) with sane local-dev
-# defaults baked in via `:-` below, so this file needs no edits to run
-# out of the box.
+#   LIVE/ENDED STATE (no exec hooks on purpose)
+#     The NestJS API polls the Control API below (`/v3/paths/list`) every
+#     few seconds and reconciles Stream.status: a ready path whose key is
+#     known becomes LIVE; a LIVE stream whose path disappears becomes
+#     ENDED. This replaced the old runOnOnline/runOnOffline hooks, which
+#     cannot work here: v1.x renamed/removed runOnPublish/runOnUnpublish,
+#     and the official Docker image is distroless (no shell, no curl), so
+#     exec-based hooks fail with `exec: "curl": executable file not found`.
 #
-# Note: these hooks *notify* the API; they do not themselves block an
-    # unrecognized/revoked key from publishing at the RTMP level (MediaMTX's
-    # authHTTPAddress gate could add that in a later phase). The API still
-    # refuses to ever report such a stream as LIVE — `handlePublish` returns
-    # `401` for a key it doesn't recognize — but the raw RTMP ingest itself is
-    # not yet cut off. Good enough for Phase 5's scope (metadata + status
-    # lifecycle); revisit if OBS-side key enforcement becomes a requirement.
+# Consequence worth knowing: if the NestJS API is down, MediaMTX denies
+# publishes and serves no HLS (it cannot ask the API for a decision). The
+# API is deliberately the source of truth for who may broadcast.
 
 logLevel: info
 logDestinations: [stdout]
@@ -51,51 +48,51 @@ rtmpAddress: :1935
 # ---------------------------------------------------------------------------
 hls: yes
 hlsAddress: :8888
-hlsAllowOrigin: "*"
+hlsAllowOrigins: ["*"]
 hlsVariant: lowLatency
 hlsSegmentCount: 7
 hlsSegmentDuration: 1s
 hlsPartDuration: 200ms
 
 # ---------------------------------------------------------------------------
-# API server (used for health checks / future stream-key auth callbacks)
+# Control API (used by the NestJS API to reconcile live state via
+# /v3/paths/list — authenticated through the same external auth flow below:
+# user `streamhub` + MEDIAMTX_WEBHOOK_SECRET, or loopback access)
 # ---------------------------------------------------------------------------
 api: yes
 apiAddress: :9997
 
-# ---------------------------------------------------------------------------
-# Other protocols left disabled for Phase 1 (kept explicit for clarity)
-# ---------------------------------------------------------------------------
+# Other protocols left disabled (kept explicit for clarity)
 rtsp: no
 webrtc: no
 srt: no
 
 # ---------------------------------------------------------------------------
-# Paths
-#
-# "all_others" accepts a publish on any path (= any stream key) at the RTMP
-# level, and reports every publish/unpublish to the API via the hooks below
-# so the corresponding `Stream.status` reflects reality.
+# Authentication — delegated to the NestJS API for every action
+# (publish, read, playback, api, metrics, pprof). Payload:
+#   {user, password, token, ip, action, path, protocol, id, query, userAgent}
+# 20x response = allow, anything else = deny.
+# ---------------------------------------------------------------------------
+authMethod: http
+authHTTPAddress: http://host.docker.internal:4000/api/v1/streams/webhooks/mediamtx/auth?secret=dev-mediamtx-secret
+
+# Loopback-only Control API administrator (diagnostics from inside the
+# container). The external auth above still decides for non-loopback API
+# callers — the NestJS poller authenticates with streamhub:<webhook secret>.
+authInternalUsers:
+  - user: any
+    pass:
+    ips: ["127.0.0.1", "::1"]
+    permissions:
+      - action: api
+      - action: metrics
+      - action: pprof
+
+# ---------------------------------------------------------------------------
+# Paths — `all_others` accepts a publish on any path (= any stream key) at
+# the RTMP level; whether that publish is ALLOWED is decided by the external
+# auth above, per key.
 # ---------------------------------------------------------------------------
 paths:
   all_others:
     source: publisher
-
-    # Fired when a source starts actually providing the stream (OBS sending
-    # RTMP data). `-o /dev/null` and no `2>&1` propagation: a slow/unreachable
-    # API must never be allowed to block or fail the RTMP session itself.
-    runOnOnline: >
-      curl -s -o /dev/null -m 5 -X POST
-      "${MEDIAMTX_API_URL:-http://host.docker.internal:4000}/api/v1/streams/webhooks/mediamtx/publish"
-      -H "Content-Type: application/json"
-      -H "x-webhook-secret: ${MEDIAMTX_WEBHOOK_SECRET:-dev-mediamtx-secret}"
-      -d "{\"streamKey\":\"$MTX_PATH\"}"
-
-    # Fired when the source stops providing the stream (OBS closed, network
-    # drop, ...).
-    runOnOffline: >
-      curl -s -o /dev/null -m 5 -X POST
-      "${MEDIAMTX_API_URL:-http://host.docker.internal:4000}/api/v1/streams/webhooks/mediamtx/unpublish"
-      -H "Content-Type: application/json"
-      -H "x-webhook-secret: ${MEDIAMTX_WEBHOOK_SECRET:-dev-mediamtx-secret}"
-      -d "{\"streamKey\":\"$MTX_PATH\"}"

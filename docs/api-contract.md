@@ -98,7 +98,7 @@ Returns the caller's own `UserPublic` (never includes `passwordHash`).
 
 ### GET `/users/:username`
 
-Public. `404` if the username doesn't exist. Returns `UserPublic` (id, username, email, displayName, avatar, bio, role, createdAt, updatedAt — no `passwordHash`).
+Public. `404` if the username doesn't exist. Returns the `UserPublic` fields (id, username, email, displayName, avatar, bio, role, createdAt, updatedAt — no `passwordHash`) **plus `channel`**: the user's `ChannelPublic` when they have created one, or an explicit `null` — so profile pages get everything in one round trip.
 
 ### PATCH `/users/me`
 
@@ -322,6 +322,7 @@ Every list endpoint (`/categories`, `/channels`, `/streams`, `/channels/:id/foll
 | PATCH | `/streams/:id` | Bearer, owner-only | Update stream metadata |
 | POST | `/streams/:id/rotate-key` | Bearer, owner-only | Issue a new stream key, invalidating the old one |
 | POST | `/streams/:id/revoke-key` | Bearer, owner-only | Invalidate the current stream key without replacing it |
+| POST | `/streams/:id/end` | Bearer, owner-only | End the caller's own live broadcast now (status → ENDED, analytics finalized) |
 | GET | `/streams/:id/status` | — | Public, lightweight status/viewer-count poll |
 | POST | `/streams/webhooks/mediamtx/publish` | Shared secret | MediaMTX → API: a publish started |
 | POST | `/streams/webhooks/mediamtx/unpublish` | Shared secret | MediaMTX → API: a publish stopped |
@@ -351,6 +352,10 @@ Public. Query params (all optional, see Pagination above for `page`/`limit`):
 ### GET `/streams/live` *(Phase 7)*
 
 Identical to `GET /streams` with `status` forced to `LIVE` (any `status` query param is ignored); all other params (`search`, `category`, `sortBy`, `order`, pagination) still apply.
+
+### GET `/streams/mine` *(Phase 10 — dashboard)*
+
+JWT required. The caller's own streams (their channel's sessions), newest first, with the same `StreamPublic` shape as the public list including live viewer counts. Used by the dashboard broadcast-tools page. Returns `200` with an empty page for an authenticated user who has no channel (rather than 404, so the dashboard can render an empty state); `401` unauthenticated. Registered before `GET /streams/:id` so `mine` is never swallowed as an id.
 
 ### Stream shape (`StreamPublic`)
 
@@ -404,6 +409,10 @@ create (OFFLINE) ──MediaMTX publish──▶ LIVE ──MediaMTX unpublish�
   reconstruct a usable key.
 - `revoke-key` sets `streamKeyHash` to `null`; the stream cannot authenticate a publish
   again until `rotate-key` is called.
+- `POST /streams/:id/end` ends the live broadcast but deliberately keeps the key: the
+  credential stays valid until rotated/revoked, so when OBS reconnects after a drop the
+  publish webhook opens a NEW session (fresh `startedAt`) instead of failing. Only
+  `rotate-key`/`revoke-key` retire a key.
 
 ### POST `/streams`
 
@@ -593,7 +602,9 @@ Recorded streams and creator content. Video binaries live in object storage (loc
 
 Public listing of VODs. Anonymous callers receive `PUBLIC` rows only; an authenticated caller also receives their own `UNLISTED`/`PRIVATE` VODs. Newest first, paginated.
 
-Query: `?page=` (default 1), `?limit=` (default 20, max 50).
+Query: `?page=` (default 1), `?limit=` (default 20, max 50), `?mine=` (`true` | `false`).
+
+`mine=true` is the **dashboard scope**: it restricts the result to ONLY the caller's own VODs across all visibilities (streamer content manager). It requires authentication — an anonymous `mine=true` is `401`, not an empty list, so a broken-auth client can't silently mistake an empty page for "you have no content". `mine=false` (or omitted) behaves as the normal public listing.
 
 ```jsonc
 {

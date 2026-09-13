@@ -1,9 +1,11 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { StreamsService } from './streams.service';
 import { CreateStreamDto } from './dto/create-stream.dto';
 import { UpdateStreamDto } from './dto/update-stream.dto';
 import { MediaMtxWebhookDto } from './dto/mediamtx-webhook.dto';
+import { MediaMtxAuthDto } from './dto/mediamtx-auth.dto';
 import { ListStreamsQueryDto } from './dto/list-streams-query.dto';
+import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/guards/roles.decorator';
@@ -29,6 +31,17 @@ export class StreamsController {
   @Get()
   async list(@Query() query: ListStreamsQueryDto) {
     return { success: true, data: await this.streams.list(query) };
+  }
+
+  /**
+   * `GET /streams/mine` — the caller's own streams (dashboard scope),
+   * newest first. Registered BEFORE `:id` so "mine" is never swallowed as
+   * an id (same static-before-param convention as `/streams/live`).
+   */
+  @UseGuards(JwtAuthGuard)
+  @Get('mine')
+  async listMine(@Req() req: RequestWithUser, @Query() query: PaginationQueryDto) {
+    return { success: true, data: await this.streams.listMine(req.user.sub, query) };
   }
 
   // --- MediaMTX lifecycle callbacks ------------------------------------
@@ -66,6 +79,31 @@ export class StreamsController {
     return { success: true, data: stream };
   }
 
+  /**
+   * MediaMTX's native delegated authentication (`authMethod: http` in
+   * infrastructure/streaming/mediamtx.yml). For EVERY client action MediaMTX
+   * POSTs `{user, password, action, path, ...}` here and treats any 2xx as
+   * allow / anything else as deny — so this endpoint answers a bare boolean
+   * (no `{success, data}` envelope) and MUST keep returning 200/401 rather
+   * than Nest's default error shapes.
+   *
+   * Authenticated by the same shared secret as the other MediaMTX
+   * webhooks; MediaMTX passes it via the `?secret=` query parameter baked
+   * into its authHTTPAddress, which the guard accepts alongside the
+   * header.
+   */
+  @UseGuards(MediaMtxWebhookGuard)
+  @HttpCode(200)
+  @Post('webhooks/mediamtx/auth')
+  async authorize(@Body() body: MediaMtxAuthDto) {
+    const allowed = await this.streams.authorize(body.action ?? '', body.path ?? null, body.password ?? null);
+    if (!allowed) {
+      // 401 (not an envelope) — the status code is the only protocol.
+      throw new UnauthorizedException();
+    }
+    return true;
+  }
+
   // --- Owner-managed CRUD + key lifecycle -------------------------------
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -97,6 +135,18 @@ export class StreamsController {
   @Post(':id/rotate-key')
   async rotateKey(@Req() req: RequestWithUser, @Param('id') id: string) {
     return { success: true, data: await this.streams.rotateKey(id, req.user.sub) };
+  }
+
+  /**
+   * `POST /streams/:id/end` — the owner ends their own live broadcast.
+   * Same shape as rotate/revoke-key; ownership + 409-on-not-live are
+   * enforced in the service.
+   */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('USER', 'STREAMER', 'MODERATOR', 'ADMIN')
+  @Post(':id/end')
+  async endStream(@Req() req: RequestWithUser, @Param('id') id: string) {
+    return { success: true, data: await this.streams.endStream(id, req.user.sub) };
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

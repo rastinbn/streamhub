@@ -5,6 +5,7 @@ import { ThrottlerStorage } from '@nestjs/throttler';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/database/prisma.service';
+import { StreamsService } from '../src/modules/streams/streams.service';
 import { RedisService } from '../src/redis/redis.service';
 import { FakePrismaService } from './utils/fake-prisma.service';
 import { FakeRedisService } from './utils/fake-redis.service';
@@ -172,6 +173,57 @@ describe('Streams (e2e)', () => {
         .set('Authorization', `Bearer ${accessToken}`)
         .send({ ...validStreamPayload, title: 'a'.repeat(141) })
         .expect(400);
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // GET /api/v1/streams/mine — dashboard scope
+  // -------------------------------------------------------------------
+  describe('GET /api/v1/streams/mine', () => {
+    it('is 401 for anonymous callers', async () => {
+      await request(app.getHttpServer()).get('/api/v1/streams/mine').expect(401);
+    });
+
+    it("returns the caller's own streams only, newest first", async () => {
+      const { accessToken } = await registerUserWithChannel();
+      const other = await registerUserWithChannel({
+        username: 'otherstreamer',
+        email: 'otherstreamer@example.com',
+        slug: 'other-streamer',
+      });
+
+      await request(app.getHttpServer())
+        .post('/api/v1/streams')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send(validStreamPayload)
+        .expect(201);
+      await request(app.getHttpServer())
+        .post('/api/v1/streams')
+        .set('Authorization', `Bearer ${other.accessToken}`)
+        .send(validStreamPayload)
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/streams/mine')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(res.body.data.total).toBe(1);
+      expect(res.body.data.items).toHaveLength(1);
+      expect(res.body.data.items[0].title).toBe(validStreamPayload.title);
+      // No keys leak through the dashboard listing either.
+      expect(res.body.data.items[0].streamKey).toBeUndefined();
+      expect(res.body.data.items[0].streamKeyHash).toBeUndefined();
+    });
+
+    it('returns an empty page for an authenticated user without a channel', async () => {
+      const { accessToken } = await registerUser();
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/streams/mine')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+      expect(res.body.data.items).toEqual([]);
+      expect(res.body.data.total).toBe(0);
     });
   });
 
@@ -449,6 +501,123 @@ describe('Streams (e2e)', () => {
   });
 
   // -------------------------------------------------------------------
+  // POST /api/v1/streams/:id/end (owner-only)
+  // -------------------------------------------------------------------
+  describe('POST /api/v1/streams/:id/end', () => {
+    /** Registers a user + channel, creates a stream and publishes it via the
+     * MediaMTX webhook so it is genuinely LIVE, like a real broadcast. */
+    async function createLiveStream(overrides: Partial<{ username: string; email: string; slug: string }> = {}) {
+      const owner = await registerUserWithChannel(overrides);
+      const createRes = await request(app.getHttpServer())
+        .post('/api/v1/streams')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(validStreamPayload)
+        .expect(201);
+      const streamKey = createRes.body.data.streamKey as string;
+      await request(app.getHttpServer())
+        .post('/api/v1/streams/webhooks/mediamtx/publish')
+        .set('x-webhook-secret', WEBHOOK_SECRET)
+        .send({ streamKey })
+        .expect(201);
+      return { owner, streamId: createRes.body.data.id as string, streamKey };
+    }
+
+    it('ends the owner\'s live stream and stamps endedAt', async () => {
+      const { owner, streamId } = await createLiveStream({
+        username: 'ender1',
+        email: 'ender1@example.com',
+        slug: 'ender1-channel',
+      });
+
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/streams/${streamId}/end`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .expect(201);
+
+      expect(res.body.data.status).toBe('ENDED');
+      expect(res.body.data.endedAt).toBeTruthy();
+    });
+
+    it('re-publishing the still-valid key after an owner end starts a fresh session (OBS reconnect semantics)', async () => {
+      const { owner, streamId, streamKey } = await createLiveStream({
+        username: 'ender2',
+        email: 'ender2@example.com',
+        slug: 'ender2-channel',
+      });
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/streams/${streamId}/end`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .expect(201);
+
+      // The key remains a valid credential until rotated/revoked: when OBS
+      // reconnects (a temporary network drop, or the streamer rebroadcasts),
+      // the publish webhook opens a NEW session with a fresh startedAt —
+      // exactly the behavior that keeps a broadcast alive across drops.
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/streams/webhooks/mediamtx/publish')
+        .set('x-webhook-secret', WEBHOOK_SECRET)
+        .send({ streamKey })
+        .expect(201);
+      expect(res.body.data.status).toBe('LIVE');
+      expect(res.body.data.endedAt).toBeNull();
+    });
+
+    it('409s when the stream is not live (double-end / offline / already ended)', async () => {
+      const { owner, streamId } = await createLiveStream({
+        username: 'ender3',
+        email: 'ender3@example.com',
+        slug: 'ender3-channel',
+      });
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/streams/${streamId}/end`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/streams/${streamId}/end`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .expect(409);
+      expect(res.body.error.message).toMatch(/only live streams/i);
+    });
+
+    it('409s for an OFFLINE (never-published) stream', async () => {
+      const owner = await registerUserWithChannel({
+        username: 'ender4',
+        email: 'ender4@example.com',
+        slug: 'ender4-channel',
+      });
+      const createRes = await request(app.getHttpServer())
+        .post('/api/v1/streams')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(validStreamPayload)
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/streams/${createRes.body.data.id}/end`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .expect(409);
+    });
+
+    it('rejects a non-owner with 403 and an anonymous caller with 401', async () => {
+      const { streamId } = await createLiveStream({
+        username: 'ender5',
+        email: 'ender5@example.com',
+        slug: 'ender5-channel',
+      });
+
+      const intruder = await registerUser({ username: 'ender5intruder', email: 'ender5-intruder@example.com' });
+      await request(app.getHttpServer())
+        .post(`/api/v1/streams/${streamId}/end`)
+        .set('Authorization', `Bearer ${intruder.accessToken}`)
+        .expect(403);
+
+      await request(app.getHttpServer()).post(`/api/v1/streams/${streamId}/end`).expect(401);
+    });
+  });
+
+  // -------------------------------------------------------------------
   // MediaMTX lifecycle webhooks
   // -------------------------------------------------------------------
   describe('POST /api/v1/streams/webhooks/mediamtx/publish', () => {
@@ -599,6 +768,149 @@ describe('Streams (e2e)', () => {
         .post('/api/v1/streams/webhooks/mediamtx/unpublish')
         .send({ streamKey: 'irrelevant' })
         .expect(401);
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // MediaMTX delegated auth (authMethod: http) — MediaMTX POSTs every
+  // client action here and treats 2xx as allow / anything else as deny.
+  // -------------------------------------------------------------------
+  describe('POST /api/v1/streams/webhooks/mediamtx/auth', () => {
+    it('allows publishing with a valid stream key (200, bare boolean)', async () => {
+      const owner = await registerUserWithChannel();
+      const createRes = await request(app.getHttpServer())
+        .post('/api/v1/streams')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(validStreamPayload);
+
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/streams/webhooks/mediamtx/auth?secret=' + WEBHOOK_SECRET)
+        .send({ action: 'publish', path: createRes.body.data.streamKey, protocol: 'rtmp' })
+        .expect(200);
+
+      // Bare-boolean body (supertest surfaces primitives via .text).
+      expect(res.text).toBe('true');
+      // Authorization does NOT transition state — the reconciler owns that.
+      const statusRes = await request(app.getHttpServer())
+        .get(`/api/v1/streams/${createRes.body.data.id}/status`)
+        .expect(200);
+      expect(statusRes.body.data.status).toBe('OFFLINE');
+    });
+
+    it('denies publishing with an unknown/revoked key', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/streams/webhooks/mediamtx/auth?secret=' + WEBHOOK_SECRET)
+        .send({ action: 'publish', path: 'sk_live_totally-made-up', protocol: 'rtmp' })
+        .expect(401);
+    });
+
+    it('denies publishing from a suspended channel', async () => {
+      const owner = await registerUserWithChannel();
+      const createRes = await request(app.getHttpServer())
+        .post('/api/v1/streams')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(validStreamPayload);
+
+      const channel = await prisma.channel.findUnique({ where: { ownerId: owner.userId } });
+      await prisma.channel.update({
+        where: { id: channel!.id },
+        data: { suspendedAt: new Date(), suspensionReason: 'test suspension' },
+      });
+
+      await request(app.getHttpServer())
+        .post('/api/v1/streams/webhooks/mediamtx/auth?secret=' + WEBHOOK_SECRET)
+        .send({ action: 'publish', path: createRes.body.data.streamKey, protocol: 'rtmp' })
+        .expect(401);
+    });
+
+    it('allows Control API access with the shared secret as password and denies wrong credentials', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/streams/webhooks/mediamtx/auth?secret=' + WEBHOOK_SECRET)
+        .send({ action: 'api', user: 'streamhub', password: WEBHOOK_SECRET })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/streams/webhooks/mediamtx/auth?secret=' + WEBHOOK_SECRET)
+        .send({ action: 'api', user: 'streamhub', password: 'not-the-secret' })
+        .expect(401);
+    });
+
+    it('allows anonymous reads (HLS viewers) and rejects callbacks without the shared secret', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/streams/webhooks/mediamtx/auth?secret=' + WEBHOOK_SECRET)
+        .send({ action: 'read', path: 'whatever', protocol: 'hls' })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/streams/webhooks/mediamtx/auth')
+        .send({ action: 'read', path: 'whatever' })
+        .expect(401);
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // MediaMTX reconciler — the API polls the Control API and owns all
+  // LIVE/ENDED transitions (the official image has no shell, so exec
+  // hooks cannot notify us).
+  // -------------------------------------------------------------------
+  describe('MediaMTX reconciler (reconcileWithPaths)', () => {
+    it('flips a ready path to LIVE, then to ENDED when the path disappears', async () => {
+      const owner = await registerUserWithChannel();
+      const createRes = await request(app.getHttpServer())
+        .post('/api/v1/streams')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(validStreamPayload);
+      const streamId = createRes.body.data.id as string;
+      const key = createRes.body.data.streamKey as string;
+      const streamsService = app.get(StreamsService);
+
+      await streamsService.reconcileWithPaths([key]);
+
+      let statusRes = await request(app.getHttpServer()).get(`/api/v1/streams/${streamId}/status`).expect(200);
+      expect(statusRes.body.data.status).toBe('LIVE');
+      expect(statusRes.body.data.startedAt).not.toBeNull();
+
+      // OBS disconnects: the path disappears from the Control API.
+      await streamsService.reconcileWithPaths([]);
+
+      statusRes = await request(app.getHttpServer()).get(`/api/v1/streams/${streamId}/status`).expect(200);
+      expect(statusRes.body.data.status).toBe('ENDED');
+      expect(statusRes.body.data.endedAt).not.toBeNull();
+    });
+
+    it('is idempotent: repeated reconciles with the same ready path do not reset startedAt', async () => {
+      const owner = await registerUserWithChannel();
+      const createRes = await request(app.getHttpServer())
+        .post('/api/v1/streams')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(validStreamPayload);
+      const key = createRes.body.data.streamKey as string;
+      const streamsService = app.get(StreamsService);
+
+      await streamsService.reconcileWithPaths([key]);
+      const first = await request(app.getHttpServer())
+        .get(`/api/v1/streams/${createRes.body.data.id}/status`)
+        .expect(200);
+
+      await streamsService.reconcileWithPaths([key, key]);
+      const second = await request(app.getHttpServer())
+        .get(`/api/v1/streams/${createRes.body.data.id}/status`)
+        .expect(200);
+
+      expect(second.body.data.startedAt).toBe(first.body.data.startedAt);
+    });
+
+    it('does not end seeded/revoked streams (null key hash) and tolerates unknown paths', async () => {
+      const owner = await registerUserWithChannel();
+      const channel = await prisma.channel.findUnique({ where: { ownerId: owner.userId } });
+      const seeded = prisma.seedStream({ channelId: channel!.id, status: 'LIVE', streamKeyHash: null });
+      const streamsService = app.get(StreamsService);
+
+      // Unknown path + missing seeded path: neither may throw or mutate.
+      await streamsService.reconcileWithPaths(['sk_live_unknown-path', 'another/unknown']);
+
+      const row = await prisma.stream.findUnique({ where: { id: seeded.id } });
+      expect(row?.status).toBe('LIVE');
     });
   });
 });

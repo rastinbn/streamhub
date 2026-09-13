@@ -1,18 +1,22 @@
 import { useState } from 'react';
 import Image from 'next/image';
-import { Star, Heart, MoreVertical } from 'lucide-react';
+import { Flag, Heart, MoreVertical } from 'lucide-react';
 import type { WatchStream } from './types';
 
 export default function StreamInfo({
   stream,
   isFollowing,
   onFollow,
+  onReport,
 }: {
   stream: WatchStream;
   isFollowing?: boolean;
   onFollow?: () => void;
+  /** Opens the report dialog; omit to hide the menu entirely. */
+  onReport?: () => void;
 }) {
   const [descExpanded, setDescExpanded] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <section className="flex flex-col gap-md">
@@ -41,9 +45,6 @@ export default function StreamInfo({
               <h3 className="font-headline-md text-headline-md text-on-surface-variant text-[20px]">
                 {stream.streamer.name}
               </h3>
-              {stream.streamer.verified && (
-                <Star className="w-[18px] h-[18px] text-primary fill-primary" />
-              )}
             </div>
             <p className="font-body-sm text-body-sm text-on-surface-variant/70">
               {stream.streamer.followers} Followers
@@ -61,19 +62,38 @@ export default function StreamInfo({
             <Heart className="w-[18px] h-[18px]" fill={isFollowing ? 'currentColor' : 'none'} />
             {isFollowing ? 'Following' : 'Follow'}
           </button>
-          <button
-            type="button"
-            className="border border-outline hover:bg-surface-variant text-on-surface px-6 py-2 rounded-full font-label-md text-label-md transition-colors flex items-center gap-2"
-          >
-            <Star className="w-[18px] h-[18px]" />
-            Subscribe
-          </button>
-          <button
-            type="button"
-            className="p-2 text-on-surface-variant hover:bg-surface-variant rounded-full transition-colors"
-          >
-            <MoreVertical className="w-5 h-5" />
-          </button>
+          {onReport && (
+            <div className="relative">
+              <button
+                type="button"
+                aria-label="More actions"
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen((v) => !v)}
+                className="p-2 text-on-surface-variant hover:bg-surface-variant rounded-full transition-colors"
+              >
+                <MoreVertical className="w-5 h-5" />
+              </button>
+              {menuOpen && (
+                <div
+                  className="absolute right-0 top-11 z-20 w-40 overflow-hidden rounded-lg border border-outline-variant/30 bg-surface-container shadow-lg"
+                  role="menu"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-body-sm text-on-surface transition-colors hover:bg-surface-variant"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onReport();
+                    }}
+                  >
+                    <Flag className="h-4 w-4 text-on-surface-variant" />
+                    Report
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

@@ -18,6 +18,8 @@ export function useWatchStream(
   isError: boolean;
   error: string | null;
   isNotFound: boolean;
+  /** Last follow/unfollow failure message, cleared on the next attempt. */
+  followError: string | null;
   setFollowed: (shouldFollow: boolean) => Promise<boolean>;
 } {
   const { accessToken } = useAuth();
@@ -31,6 +33,7 @@ export function useWatchStream(
   const [isError, setIsError] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isNotFound, setIsNotFound] = useState(false);
+  const [followError, setFollowError] = useState<string | null>(null);
   // Tracks the last known stream status for the status-poll effect below
   // (which refetches the full stream when it flips to LIVE) without the
   // closure capturing a stale `stream` value.
@@ -110,9 +113,13 @@ export function useWatchStream(
           setChannel((c) => (c ? { ...c, followersCount: Math.max(0, c.followersCount - 1) } : c));
         }
         setIsFollowing(shouldFollow);
+        setFollowError(null);
         emitDataChange('follows');
         return true;
-      } catch {
+      } catch (e) {
+        setFollowError(
+          e instanceof Error ? e.message : 'Could not update follow. Please try again.',
+        );
         return false;
       }
     },
@@ -128,6 +135,7 @@ export function useWatchStream(
     isError,
     error,
     isNotFound,
+    followError,
     setFollowed,
   };
 }

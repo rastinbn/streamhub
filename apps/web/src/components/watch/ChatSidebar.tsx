@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Users, Smile, Settings, Send, MessageSquare, LogIn, Loader2, X } from 'lucide-react';
+import { Users, Smile, Settings, Send, MessageSquare, LogIn, Loader2, X, Timer, Gavel } from 'lucide-react';
 import ChatMessage from './ChatMessage';
 import type { ChatMessage as ChatItem } from './types';
 import type { ChatConnectionState } from '@/hooks/useWatchChat';
@@ -22,6 +22,9 @@ export default function ChatSidebar({
   errorMessage,
   onSend,
   onClearError,
+  canModerate = false,
+  onTimeout,
+  onBan,
 }: {
   chat: ChatItem[];
   viewerCount: string;
@@ -30,6 +33,10 @@ export default function ChatSidebar({
   errorMessage: string | null;
   onSend: (text: string) => boolean;
   onClearError: () => void;
+  /** UX hint only — the gateway re-checks permission on every action. */
+  canModerate?: boolean;
+  onTimeout?: (targetUserId: string, seconds: number) => boolean;
+  onBan?: (targetUserId: string) => boolean;
 }) {
   const [draft, setDraft] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -107,9 +114,33 @@ export default function ChatSidebar({
           </p>
         </div>
       ) : (
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 flex flex-col gap-sm bg-background/30">
+        <div ref={scrollRef} className="group/list flex-1 overflow-y-auto p-3 flex flex-col gap-sm bg-background/30">
           {chat.map((msg) => (
-            <ChatMessage key={msg.id} message={msg} />
+            <div key={msg.id} className="relative">
+              <ChatMessage message={msg} />
+              {canModerate && onTimeout && onBan && msg.userId && (msg.type === 'user' || msg.type === 'mod') && (
+                <div className="absolute right-1 top-0 z-10 hidden rounded-md border border-outline-variant/40 bg-surface-container shadow-sm group-hover/list:block">
+                  <button
+                    type="button"
+                    title="Timeout 10 minutes"
+                    aria-label={`Timeout ${msg.user} for 10 minutes`}
+                    className="p-1 text-on-surface-variant transition-colors hover:text-error"
+                    onClick={() => onTimeout(msg.userId!, 600)}
+                  >
+                    <Timer className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    title="Ban from chat"
+                    aria-label={`Ban ${msg.user} from this chat`}
+                    className="p-1 text-on-surface-variant transition-colors hover:text-error"
+                    onClick={() => onBan(msg.userId!)}
+                  >
+                    <Gavel className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}

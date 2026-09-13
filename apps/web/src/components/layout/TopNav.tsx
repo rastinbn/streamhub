@@ -16,12 +16,21 @@ interface TopNavProps {
 
 export default function TopNav({ onMenuClick, menuOpen }: TopNavProps) {
   const [query, setQuery] = useState('');
+  const [mobileQuery, setMobileQuery] = useState('');
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const { user, loading, logout } = useAuth();
   const router = useRouter();
+
+  /** Search routes to the real browse page, which passes `q` to the backend
+   * (`GET /streams?search=`). Same contract for desktop and mobile. */
+  function submitSearch(value: string) {
+    const trimmed = value.trim();
+    setMobileSearchOpen(false);
+    router.push(trimmed ? `/browse?q=${encodeURIComponent(trimmed)}` : '/browse');
+  }
 
   useEffect(() => {
     if (!profileMenuOpen) return;
@@ -84,7 +93,14 @@ export default function TopNav({ onMenuClick, menuOpen }: TopNavProps) {
         </Link>
 
         {/* Desktop search */}
-        <div className="relative ml-2 hidden w-64 md:flex lg:w-96">
+        <form
+          className="relative ml-2 hidden w-64 md:flex lg:w-96"
+          role="search"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submitSearch(query);
+          }}
+        >
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-outline" />
           <input
             ref={searchRef}
@@ -92,10 +108,10 @@ export default function TopNav({ onMenuClick, menuOpen }: TopNavProps) {
             onChange={(e) => setQuery(e.target.value)}
             aria-label="Search"
             className="w-full rounded-full border border-outline-variant bg-surface-container py-2 pl-10 pr-4 text-sm text-on-surface placeholder:text-outline transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-            placeholder="Search..."
+            placeholder="Search streams…"
             type="search"
           />
-        </div>
+        </form>
       </div>
 
       {/* Right */}
@@ -122,12 +138,10 @@ export default function TopNav({ onMenuClick, menuOpen }: TopNavProps) {
           <Video className="h-5 w-5" />
         </Link>
 
-        <button aria-label="Notifications, 1 unread" className={`${iconBtn} relative`}>
+        {/* Notifications are not part of the current MVP (no backend
+            endpoints yet) — the bell is intentionally inert. */}
+        <button aria-label="Notifications (not available yet)" title="Not available yet" disabled className={`${iconBtn} cursor-not-allowed opacity-40`}>
           <Bell className="h-5 w-5" />
-          <span
-            aria-hidden
-            className="absolute right-2 top-2 h-2 w-2 rounded-full bg-error ring-2 ring-background"
-          />
         </button>
 
         {!loading && !user && (
@@ -231,17 +245,26 @@ export default function TopNav({ onMenuClick, menuOpen }: TopNavProps) {
       {/* Mobile expanding search bar */}
       {mobileSearchOpen && (
         <div className="absolute top-full left-0 w-full animate-[slide-down_150ms_ease-out] border-b border-outline-variant/30 bg-background/95 px-4 pb-3 backdrop-blur-md md:hidden">
-          <div className="relative">
+          <form
+            className="relative"
+            role="search"
+            onSubmit={(e) => {
+              e.preventDefault();
+              submitSearch(mobileQuery);
+            }}
+          >
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-outline" />
             <input
               ref={searchRef}
+              value={mobileQuery}
+              onChange={(e) => setMobileQuery(e.target.value)}
               aria-label="Search"
               autoFocus
               type="search"
               className="w-full rounded-full border border-outline-variant bg-surface-container py-2 pl-10 pr-4 text-sm text-on-surface placeholder:text-outline focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              placeholder="Search..."
+              placeholder="Search streams…"
             />
-          </div>
+          </form>
         </div>
       )}
     </nav>

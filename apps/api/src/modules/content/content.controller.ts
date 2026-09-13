@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Patch, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Query,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import { ContentService } from './content.service';
 import { RecordingCompletedDto } from './dto/recording-completed.dto';
 import { ListContentQueryDto } from './dto/list-content-query.dto';
@@ -25,7 +36,26 @@ export class ContentController {
     // Auth is optional here: a valid token widens visibility to the
     // caller's own content; anonymous callers see PUBLIC only.
     const requesterId = this.getRequesterId(req);
-    return { success: true, data: await this.content.list({ requesterId, page: query.page ?? 1, limit: query.limit ?? 20 }) };
+
+    // `mine=true` is the streamer-dashboard scope: ONLY the caller's own
+    // VODs, all visibilities. It has no meaning anonymously — an
+    // unauthenticated request asking for "my content" is 401, not an
+    // empty PUBLIC list (which would silently look like "you have no
+    // content" in a broken-auth client).
+    const mine = query.mine === 'true';
+    if (mine && !requesterId) {
+      throw new UnauthorizedException('Authentication required for mine=true');
+    }
+
+    return {
+      success: true,
+      data: await this.content.list({
+        requesterId,
+        page: query.page ?? 1,
+        limit: query.limit ?? 20,
+        mine,
+      }),
+    };
   }
 
   @UseGuards(OptionalJwtAuthGuard)

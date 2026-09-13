@@ -475,31 +475,13 @@ export class FakePrismaService {
    * channelId-set matching, since fake VOD rows don't carry a `channel`
    * object.
    */
+  /**
+   * VOD ownership filters: the service resolves the caller's channel id
+   * itself (real Prisma has no `channel` relation on Vod), so the fake
+   * accepts exactly the same shapes — scalar `channelId` and `OR` branches.
+   */
   private flattenVodWhere(where: ListWhere): ListWhere {
-    const flat: ListWhere = { ...where };
-
-    const ownerIdsFor = (rel: { ownerId?: string }): Set<string> =>
-      new Set(this.channelRows.filter((c) => c.ownerId === rel.ownerId).map((c) => c.id));
-
-    if ((flat as { channel?: { ownerId?: string } }).channel) {
-      const ids = ownerIdsFor((flat as { channel: { ownerId?: string } }).channel);
-      delete (flat as Record<string, unknown>).channel;
-      (flat as Record<string, unknown>).channelId = { in: [...ids] };
-    }
-
-    if (Array.isArray((flat as { OR?: unknown[] }).OR)) {
-      (flat as { OR: ListWhere[] }).OR = (flat as { OR: ListWhere[] }).OR.map((sub) => {
-        const s = { ...sub };
-        if ((s as { channel?: { ownerId?: string } }).channel) {
-          const ids = ownerIdsFor((s as { channel: { ownerId?: string } }).channel);
-          delete (s as Record<string, unknown>).channel;
-          (s as Record<string, unknown>).channelId = { in: [...ids] };
-        }
-        return s;
-      });
-    }
-
-    return flat;
+    return { ...where };
   }
 
   /** Test helper: promote an already-registered user to ADMIN — there is

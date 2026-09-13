@@ -1,19 +1,23 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { toPublicUser } from '../../common/mappers';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import type { UserPublic } from '@streamhub/types';
+import type { UserPublic, UserProfile } from '@streamhub/types';
+import { toPublicChannel, toPublicUser } from '../../common/mappers';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getProfile(username: string): Promise<UserPublic> {
+  async getProfile(username: string): Promise<UserProfile> {
     const user = await this.prisma.user.findUnique({ where: { username } });
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    return toPublicUser(user);
+    // Public profile pages want the user's channel too; two indexed unique
+    // lookups beat a join for this access pattern and keep the contract exact
+    // (slug-precise channel data, never name matching).
+    const channel = await this.prisma.channel.findUnique({ where: { ownerId: user.id } });
+    return { ...toPublicUser(user), channel: channel ? toPublicChannel(channel) : null };
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto): Promise<UserPublic> {

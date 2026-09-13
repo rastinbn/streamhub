@@ -7,7 +7,6 @@ import type { ChannelPublic } from '@streamhub/types';
 export function useFollowedChannels(): {
   channels: ChannelPublic[];
   isLoading: boolean;
-  isSupported: boolean;
   refetch: () => Promise<void>;
 } {
   const { accessToken } = useAuth();
@@ -35,5 +34,5 @@ export function useFollowedChannels(): {
     refetch().finally(() => setIsLoading(false));
   }, [refetch, routeKey, followsKey]);
 
-  return { channels, isLoading, isSupported: !!accessToken, refetch };
+  return { channels, isLoading, refetch };
 }

@@ -182,6 +182,46 @@ describe('Content (e2e)', () => {
   });
 
   // -------------------------------------------------------------------
+  // GET /api/v1/content?mine=true — dashboard scope
+  // -------------------------------------------------------------------
+  describe('GET /api/v1/content?mine=true', () => {
+    it('returns ONLY the caller\u2019s own vods across all visibilities', async () => {
+      const owner = await registerUserWithChannel();
+      const other = await registerUserWithChannel({ username: 'other10', email: 'other10@example.com', slug: 'other10' });
+
+      await seedVodFor(owner.userId, { visibility: 'PUBLIC', title: 'Mine public' });
+      await seedVodFor(owner.userId, { visibility: 'UNLISTED', title: 'Mine unlisted' });
+      await seedVodFor(owner.userId, { visibility: 'PRIVATE', title: 'Mine private' });
+      await seedVodFor(other.userId, { visibility: 'PUBLIC', title: 'Theirs' });
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/content?mine=true')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .expect(200);
+
+      const titles = res.body.data.items.map((v: { title: string }) => v.title);
+      expect(titles).toEqual(expect.arrayContaining(['Mine public', 'Mine unlisted', 'Mine private']));
+      expect(titles).not.toContain('Theirs');
+      expect(res.body.data.total).toBe(3);
+    });
+
+    it('requires authentication \u2014 anonymous mine=true is 401', async () => {
+      const owner = await registerUserWithChannel();
+      await seedVodFor(owner.userId, { visibility: 'PUBLIC' });
+
+      await request(app.getHttpServer()).get('/api/v1/content?mine=true').expect(401);
+    });
+
+    it('rejects invalid mine values (validation)', async () => {
+      const owner = await registerUserWithChannel();
+      await request(app.getHttpServer())
+        .get('/api/v1/content?mine=yes')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .expect(400);
+    });
+  });
+
+  // -------------------------------------------------------------------
   // GET /api/v1/content/:id — visibility + view counting
   // -------------------------------------------------------------------
   describe('GET /api/v1/content/:id', () => {
