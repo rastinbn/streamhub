@@ -1,12 +1,10 @@
 'use client';
 
-import { useState } from 'react';
 import { useParams, useRouter, notFound } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import VideoPlayer from '@/components/watch/VideoPlayer';
 import StreamInfo from '@/components/watch/StreamInfo';
 import WatchGate from '@/components/watch/WatchGate';
-import ReportDialog from '@/components/watch/ReportDialog';
 import type { WatchStream } from '@/components/watch/types';
 import { useWatchStream } from '@/hooks/useWatchStream';
 import { useWatchChat } from '@/hooks/useWatchChat';
@@ -37,10 +35,9 @@ export default function WatchPage() {
   const params = useParams<{ channel: string; streamId: string }>();
   const router = useRouter();
   const { user, loading, accessToken } = useAuth();
-  const { stream, channel, status, isFollowing, isLoading, isError, error, isNotFound, setFollowed, followError } =
+  const { stream, channel, status, isFollowing, isLoading, isError, error, isNotFound, setFollowed } =
     useWatchStream(params.streamId, params.channel);
   const chat = useWatchChat(params.streamId);
-  const [reportOpen, setReportOpen] = useState(false);
   // Signed-out visitors don't send presence pings — only authenticated
   // viewers count toward a stream's live viewer number.
   useViewerHeartbeat(params.streamId, stream?.status === 'LIVE' && !isLoading && !!user && !loading);
@@ -98,6 +95,7 @@ export default function WatchPage() {
       avatarUrl: channel?.avatar ?? PLACEHOLDER_AVATAR,
       avatarAlt: PLACEHOLDER_ALT,
       followers: channel ? formatCompact(chat.liveFollowersCount ?? channel.followersCount) : MISSING_NAME,
+      verified: false,
     },
     category: stream.category ?? channel?.category ?? MISSING_NAME,
     tags,
@@ -110,17 +108,7 @@ export default function WatchPage() {
       <div className="flex-1 overflow-y-auto p-md lg:p-lg pb-xl">
         <div className="max-w-screen-2xl mx-auto w-full space-y-lg">
           <VideoPlayer stream={watchStream} />
-          {followError && (
-            <p role="alert" className="text-body-sm text-error">
-              {followError}
-            </p>
-          )}
-          <StreamInfo
-            stream={watchStream}
-            isFollowing={isFollowing}
-            onFollow={() => void toggleFollow()}
-            onReport={accessToken ? () => setReportOpen(true) : undefined}
-          />
+          <StreamInfo stream={watchStream} isFollowing={isFollowing} onFollow={() => void toggleFollow()} />
         </div>
       </div>
 
@@ -133,22 +121,7 @@ export default function WatchPage() {
         errorMessage={chat.errorMessage}
         onSend={chat.send}
         onClearError={chat.clearError}
-        canModerate={chat.canModerate}
-        onTimeout={chat.timeoutUser}
-        onBan={chat.banUser}
       />
-
-      {/* Report dialog */}
-      {reportOpen && stream && accessToken && (
-        <ReportDialog
-          target={{ targetType: 'STREAM', targetId: stream.id }}
-          accessToken={accessToken}
-          onClose={(submitted) => {
-            setReportOpen(false);
-            if (submitted) router.refresh();
-          }}
-        />
-      )}
     </div>
   );
 }

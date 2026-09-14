@@ -42,7 +42,8 @@ services:
       retries: 5
 
   mediamtx:
-    image: bluenviron/mediamtx:latest
+    build: ./infrastructure/streaming
+    image: streamhub-mediamtx:local
     container_name: streamhub-mediamtx
     restart: unless-stopped
     ports:

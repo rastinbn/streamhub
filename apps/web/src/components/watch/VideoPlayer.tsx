@@ -111,7 +111,7 @@ export default function VideoPlayer({ stream }: { stream: WatchStream }) {
   return (
     <section
       ref={containerRef}
-      className="group relative w-full aspect-video overflow-hidden rounded-lg border border-surface-variant bg-black shadow-lg"
+      className="group relative w-full aspect-video overflow-hidden rounded-none border border-surface-variant bg-black shadow-lg lg:rounded-lg"
     >
       {!hasSource || ended ? (
         <div className="absolute inset-0">
@@ -174,8 +174,8 @@ export default function VideoPlayer({ stream }: { stream: WatchStream }) {
             </div>
           )}
 
-          {/* Bottom controls (reveal on hover / while playing) */}
-          <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/90 via-black/50 to-transparent p-md pt-xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 z-10 pointer-events-none">
+          {/* Bottom controls (always visible on mobile, reveal on hover on desktop) */}
+          <div className="pointer-events-none absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/90 via-black/50 to-transparent p-md pt-xl opacity-100 transition-opacity duration-300 z-10 lg:opacity-0 lg:group-hover:opacity-100">
             <div className="pointer-events-auto flex items-center justify-between text-white">
               <div className="flex items-center gap-4">
                 <button
