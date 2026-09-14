@@ -30,7 +30,13 @@ import { StorageModule } from './storage/storage.module';
       load: [configuration],
     }),
     ThrottlerModule.forRoot({
-      throttlers: [{ ttl: 60000, limit: 20 }],
+      // Global per-IP ceiling for the API as a whole. The default card is
+      // deliberately generous: in-app polling (watch status every 15s,
+      // dashboard every 10s, list refreshes) plus SSR + hydration can hit a
+      // strict limit very quickly from dev/localhost. Abuse on the
+      // credential endpoints is still tightly capped (see AuthController),
+      // and internal callers (MediaMTX webhooks, health checks) are exempt.
+      throttlers: [{ ttl: 60_000, limit: 100 }],
     }),
     DatabaseModule,
     RedisModule,

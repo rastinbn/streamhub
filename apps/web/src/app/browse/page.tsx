@@ -1,10 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import StreamCard, { StreamCardProps } from '@/components/streams/StreamCard';
 import { useStreams } from '@/hooks/useStreams';
 import { usePaginatedStreams } from '@/hooks/usePaginatedStreams';
 import type { StreamListQuery } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { MISSING_NAME, PLACEHOLDER_ALT, PLACEHOLDER_AVATAR, PLACEHOLDER_THUMBNAIL, UNTITLED } from '@/lib/placeholders';
 import type { StreamPublic } from '@streamhub/types';
 import {
@@ -62,9 +65,10 @@ function toCard(stream: StreamPublic): StreamCardProps {
   };
 }
 
-function buildQuery(activeFilter: FilterId, sortBy: SortKey): StreamListQuery {
+function buildQuery(activeFilter: FilterId, sortBy: SortKey, q?: string): StreamListQuery {
   const query: StreamListQuery = {};
 
+  if (q) query.search = q;
   if (activeFilter === 'live') query.status = 'LIVE';
   if (activeFilter === 'most-viewed') {
     query.sortBy = 'viewerCount';
@@ -87,13 +91,24 @@ function buildQuery(activeFilter: FilterId, sortBy: SortKey): StreamListQuery {
   return query;
 }
 
-export default function Browse() {
+function BrowseView() {
+  const searchParams = useSearchParams();
+  const q = (searchParams.get('q') ?? '').trim();
+  const isSearching = q.length > 0;
+
   const [activeFilter, setActiveFilter] = useState<FilterId>('all');
   const [sortBy, setSortBy] = useState<SortKey>('viewers-desc');
   const [sortOpen, setSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
 
-  const query = useMemo(() => buildQuery(activeFilter, sortBy), [activeFilter, sortBy]);
+  // A new search term starts from a clean slate — no leftover live-only
+  // filter or custom sort smuggling results from the previous query.
+  useEffect(() => {
+    setActiveFilter('all');
+    setSortBy('viewers-desc');
+  }, [q]);
+
+  const query = useMemo(() => buildQuery(activeFilter, sortBy, q), [activeFilter, sortBy, q]);
   const { streams, total, hasMore, isLoading, isLoadingMore, isError, error, loadMore } =
     usePaginatedStreams(query);
 
@@ -131,16 +146,30 @@ export default function Browse() {
       {/* Header */}
       <div className="mb-lg flex flex-col gap-md justify-between md:mb-xl md:flex-row md:items-end">
         <div>
-          <h1 className="mb-xs  text-headline-lg-mobile font-headline-lg-mobile text-on-surface md:text-headline-lg md:font-headline-lg">
-            Browse Streams
+          <h1 className="mb-xs flex items-center gap-sm  text-headline-lg-mobile font-headline-lg-mobile text-on-surface md:text-headline-lg md:font-headline-lg">
+            <span>{isSearching ? `Results for “${q}”` : 'Browse Streams'}</span>
+            {isSearching && (
+              <Link
+                href="/browse"
+                className="rounded-lg border border-outline-variant px-sm py-xs text-label-md font-label-md text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
+              >
+                Clear
+              </Link>
+            )}
           </h1>
-          <p className="flex items-center gap-xs text-body-md font-body-md text-on-surface-variant">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-live opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-live" />
-            </span>
-            {liveTotal} streams live now
-          </p>
+          {isSearching ? (
+            <p className="text-body-md font-body-md text-on-surface-variant">
+              {total} matching stream{total === 1 ? '' : 's'}
+            </p>
+          ) : (
+            <p className="flex items-center gap-xs text-body-md font-body-md text-on-surface-variant">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-live opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-live" />
+              </span>
+              {liveTotal} streams live now
+            </p>
+          )}
         </div>
 
         {/* Sort dropdown */}
@@ -157,7 +186,7 @@ export default function Browse() {
               Sort: <strong className="font-semibold">{currentSortLabel}</strong>
             </span>
             <ChevronDown
-              className={`h-4 w-4 text-on-surface-variant transition-transform ${sortOpen ? 'rotate-180' : ''}`}
+              className={cn('h-4 w-4 text-on-surface-variant transition-transform', sortOpen && 'rotate-180')}
             />
           </button>
 
@@ -201,11 +230,13 @@ export default function Browse() {
                 type="button"
                 onClick={() => isFilterable && setActiveFilter(filter.id)}
                 title={isFilterable ? undefined : 'Coming soon'}
-                className={`flex items-center gap-xs rounded-full px-md py-sm text-label-md font-label-md transition-colors ${
+                className={cn(
+                  'flex items-center gap-xs rounded-full px-md py-sm text-label-md font-label-md transition-colors',
                   isActive
                     ? 'bg-primary-container font-semibold tracking-wide text-on-primary-container'
-                    : 'border border-outline-variant bg-transparent text-on-surface-variant hover:bg-surface-variant hover:text-on-surface'
-                } ${!isFilterable ? 'opacity-60' : ''}`}
+                    : 'border border-outline-variant bg-transparent text-on-surface-variant hover:bg-surface-variant hover:text-on-surface',
+                  !isFilterable && 'opacity-60',
+                )}
               >
                 {filter.liveDot && <span className="h-2 w-2 rounded-full bg-live" />}
                 {Icon && <Icon className="h-4 w-4" />}
@@ -230,7 +261,9 @@ export default function Browse() {
         <div className="flex flex-col items-center justify-center gap-sm rounded-lg border border-dashed border-outline-variant py-2xl text-center">
           <Radio className="h-8 w-8 text-outline" />
           <p className="text-body-md font-body-md text-on-surface-variant">
-            Nothing live right now — check back soon.
+            {isSearching
+              ? `No streams match “${q}” — try a different search term.`
+              : 'Nothing live right now — check back soon.'}
           </p>
         </div>
       ) : (
@@ -279,5 +312,13 @@ export default function Browse() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function BrowsePage() {
+  return (
+    <Suspense fallback={null}>
+      <BrowseView />
+    </Suspense>
   );
 }

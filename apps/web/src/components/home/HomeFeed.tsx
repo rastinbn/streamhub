@@ -12,6 +12,7 @@ import { formatCompact } from '@/lib/format';
 import { MISSING_NAME, PLACEHOLDER_ALT, PLACEHOLDER_AVATAR, PLACEHOLDER_THUMBNAIL, UNTITLED } from '@/lib/placeholders';
 import { ChevronDown, Radio } from 'lucide-react';
 import type { StreamPublic } from '@streamhub/types';
+import { cn } from '@/lib/utils';
 
 // The hero is the top live stream from the API — fully real, clicks through
 // to its watch page. The grid below it is the same live-streams feed.
@@ -106,7 +107,10 @@ export default function HomeFeed() {
           {streams.map((stream, i) => {
             const card = toHomeCard(stream, i);
             return (
-              <div key={card.id} className={card.showFrom === 'all' ? '' : card.showFrom === 'sm' ? 'hidden sm:block' : 'hidden lg:block'}>
+              <div
+                key={card.id}
+                className={cn(card.showFrom === 'all' ? '' : card.showFrom === 'sm' ? 'hidden sm:block' : 'hidden lg:block')}
+              >
                 <div
                   className="motion-safe:animate-[fade-in-up_400ms_ease-out_backwards]"
                   style={{ animationDelay: `${Math.min(i, 10) * 40}ms` }}

@@ -6,8 +6,8 @@
 #   - Notify the NestJS API when a publish starts/stops (Phase 5)
 #
 # This server remains isolated from the NestJS API's business logic — it
-# never validates users/channels/roles itself. The only integration point is
-# the pair of HTTP callbacks below (`runOnOnline` / `runOnOffline`),
+# never validates users/channels/roles itself. The only integration points
+# are the pair of HTTP callbacks below (`runOnOnline` / `runOnOffline`),
 # which simply forward "a publish started/stopped on path X" to the API so
 # `Stream.status` can be kept in sync. The API is the one that decides what
 # that means (looking `X` up as a stream key hash, flipping OFFLINE/LIVE/
@@ -24,18 +24,16 @@
 # `POST /api/v1/streams` (or `.../rotate-key`) — e.g. OBS server
 # `rtmp://localhost:1935/<streamKey>`.
 #
-# `${MEDIAMTX_API_URL}` / `${MEDIAMTX_WEBHOOK_SECRET}` are read from the
+# ${MEDIAMTX_API_URL} / ${MEDIAMTX_WEBHOOK_SECRET} are read from the
 # container's environment (see `docker-compose.yml`) with sane local-dev
 # defaults baked in via `:-` below, so this file needs no edits to run
 # out of the box.
 #
-# Note: these hooks *notify* the API; they do not themselves block an
-    # unrecognized/revoked key from publishing at the RTMP level (MediaMTX's
-    # authHTTPAddress gate could add that in a later phase). The API still
-    # refuses to ever report such a stream as LIVE — `handlePublish` returns
-    # `401` for a key it doesn't recognize — but the raw RTMP ingest itself is
-    # not yet cut off. Good enough for Phase 5's scope (metadata + status
-    # lifecycle); revisit if OBS-side key enforcement becomes a requirement.
+# IMPORTANT — the official `bluenviron/mediamtx` image is scratch-based and
+# ships NO shell/curl. The runtime here (see `infrastructure/streaming/
+# Dockerfile`) grafts busybox onto it, so every hook MUST use `wget`, never
+# `curl` — a `curl`-based hook dies with `exec: "curl": not found` and the
+# stream never goes LIVE on the web side.
 
 logLevel: info
 logDestinations: [stdout]
@@ -47,18 +45,63 @@ rtmp: yes
 rtmpAddress: :1935
 
 # ---------------------------------------------------------------------------
+# Authentication
+#
+# `internal` auth keeps RTMP/HLS open to anonymous clients exactly as before
+# (the `any` user below grants publish/read/playback). On top of that we
+# register a `streamhub:<secret>` API user so the NestJS reconciler (which
+# polls `GET /v3/paths/list` with `Authorization: Basic streamhub:<secret>`
+# — see `streams.service.ts` `fetchReadyPaths`) can authenticate against the
+# Control API. Without this the reconciler gets a 401 every poll cycle and
+# the OBS→LIVE detection it provides never fires.
+# ---------------------------------------------------------------------------
+authMethod: internal
+authInternalUsers:
+  # Default unprivileged user: anonymous clients can publish (OBS) and read
+  # (HLS viewers) any path, mirroring the pre-authMethod behavior.
+  - user: any
+    pass:
+    permissions:
+      - action: publish
+        path:
+      - action: read
+        path:
+      - action: playback
+        path:
+  # Localhost can use the Control API without credentials (MediaMTX default).
+  - user: any
+    pass:
+    ips: ["127.0.0.1", "::1"]
+    permissions:
+      - action: api
+      - action: metrics
+      - action: pprof
+  # The NestJS reconciler authenticates as `streamhub` with the webhook
+  # secret as its password. Reachable from any IP (the API runs on the host,
+  # which the container sees as the docker bridge gateway, not localhost).
+  # NOTE: MediaMTX does NOT expand env vars inside credential fields, so the
+  # password below is literal and MUST stay in sync with the API's
+  # MEDIAMTX_WEBHOOK_SECRET (default: dev-mediamtx-secret).
+  - user: streamhub
+    pass: dev-mediamtx-secret
+    permissions:
+      - action: api
+      - action: metrics
+      - action: pprof
+
+# ---------------------------------------------------------------------------
 # HLS / Low-Latency HLS output (MediaMTX -> Web Player)
 # ---------------------------------------------------------------------------
 hls: yes
 hlsAddress: :8888
-hlsAllowOrigin: "*"
+hlsAllowOrigins: ["*"]
 hlsVariant: lowLatency
 hlsSegmentCount: 7
 hlsSegmentDuration: 1s
 hlsPartDuration: 200ms
 
 # ---------------------------------------------------------------------------
-# API server (used for health checks / future stream-key auth callbacks)
+# API server (health checks + the reconciler's ready-path introspection)
 # ---------------------------------------------------------------------------
 api: yes
 apiAddress: :9997
@@ -82,20 +125,20 @@ paths:
     source: publisher
 
     # Fired when a source starts actually providing the stream (OBS sending
-    # RTMP data). `-o /dev/null` and no `2>&1` propagation: a slow/unreachable
-    # API must never be allowed to block or fail the RTMP session itself.
+    # RTMP data). `-O /dev/null` and `-T 5` timeout: a slow/unreachable API
+    # must never be allowed to block or fail the RTMP session itself.
     runOnOnline: >
-      curl -s -o /dev/null -m 5 -X POST
+      wget -q -O /dev/null -T 5
+      --header="Content-Type: application/json"
+      --header="x-webhook-secret: ${MEDIAMTX_WEBHOOK_SECRET:-dev-mediamtx-secret}"
+      --post-data="{\"streamKey\":\"$MTX_PATH\"}"
       "${MEDIAMTX_API_URL:-http://host.docker.internal:4000}/api/v1/streams/webhooks/mediamtx/publish"
-      -H "Content-Type: application/json"
-      -H "x-webhook-secret: ${MEDIAMTX_WEBHOOK_SECRET:-dev-mediamtx-secret}"
-      -d "{\"streamKey\":\"$MTX_PATH\"}"
 
     # Fired when the source stops providing the stream (OBS closed, network
     # drop, ...).
     runOnOffline: >
-      curl -s -o /dev/null -m 5 -X POST
+      wget -q -O /dev/null -T 5
+      --header="Content-Type: application/json"
+      --header="x-webhook-secret: ${MEDIAMTX_WEBHOOK_SECRET:-dev-mediamtx-secret}"
+      --post-data="{\"streamKey\":\"$MTX_PATH\"}"
       "${MEDIAMTX_API_URL:-http://host.docker.internal:4000}/api/v1/streams/webhooks/mediamtx/unpublish"
-      -H "Content-Type: application/json"
-      -H "x-webhook-secret: ${MEDIAMTX_WEBHOOK_SECRET:-dev-mediamtx-secret}"
-      -d "{\"streamKey\":\"$MTX_PATH\"}"

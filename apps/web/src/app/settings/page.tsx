@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useUpdateProfile } from '@/hooks/useUpdateProfile';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { isSafeImageSrc } from '@/lib/security';
+import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 
 function SectionCard({
@@ -163,11 +164,12 @@ export default function SettingsPage() {
             {message && (
               <p
                 role={message.type === 'error' ? 'alert' : 'status'}
-                className={`rounded-lg px-3 py-2 text-body-sm font-body-sm ${
+                className={cn(
+                  'rounded-lg px-3 py-2 text-body-sm font-body-sm',
                   message.type === 'ok'
                     ? 'bg-online/10 text-online'
-                    : 'bg-error-container text-on-error-container'
-                }`}
+                    : 'bg-error-container text-on-error-container',
+                )}
               >
                 {message.text}
               </p>
@@ -236,14 +238,16 @@ export default function SettingsPage() {
                   role="switch"
                   aria-checked={row.value}
                   onClick={() => row.set(!row.value)}
-                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-                    row.value ? 'bg-primary-container' : 'bg-surface-variant'
-                  }`}
+                  className={cn(
+                  'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                  row.value ? 'bg-primary-container' : 'bg-surface-variant',
+                )}
                 >
                   <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                      row.value ? 'translate-x-[1.5rem]' : 'translate-x-0.5'
-                    }`}
+                    className={cn(
+                      'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform',
+                      row.value ? 'translate-x-[1.5rem]' : 'translate-x-0.5',
+                    )}
                   />
                 </button>
               </label>

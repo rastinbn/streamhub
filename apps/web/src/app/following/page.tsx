@@ -10,6 +10,7 @@ import OfflineCardItem, { OfflineCard } from '@/components/streams/OfflineCardIt
 import { useFollowingOverview } from '@/hooks/useFollowingOverview';
 import { useAuth } from '@/lib/auth-context';
 import { formatCompact } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import {
   MISSING_NAME,
   PLACEHOLDER_ALT,
@@ -79,7 +80,7 @@ function NotificationBell() {
       title={text}
       className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-container text-on-surface-variant transition-all hover:bg-surface-container-high active:scale-95"
     >
-      <Icon className={`h-[18px] w-[18px] ${state === 'active' ? 'text-primary' : ''}`} />
+      <Icon className={cn('h-[18px] w-[18px]', state === 'active' && 'text-primary')} />
     </button>
   );
 }
@@ -132,24 +133,24 @@ export default function Following() {
                 type="button"
                 onClick={() => setFilter(tab.id)}
                 aria-pressed={isActive}
-                className={`flex flex-1 items-center justify-center gap-xs rounded-lg px-xs py-sm font-label-md text-label-md transition-all ${
+                className={cn(
+                  'flex flex-1 items-center justify-center gap-xs rounded-lg px-xs py-sm font-label-md text-label-md transition-all',
                   isActive
                     ? 'bg-surface-container-highest font-semibold text-on-surface shadow-sm'
-                    : 'text-on-surface-variant hover:text-on-surface'
-                }`}
+                    : 'text-on-surface-variant hover:text-on-surface',
+                )}
               >
                 {tab.live && (
                   <span
-                    className={`h-2 w-2 rounded-full ${isActive ? 'bg-live animate-pulse' : 'bg-error/60'}`}
+                    className={cn('h-2 w-2 rounded-full', isActive ? 'bg-live animate-pulse' : 'bg-error/60')}
                   />
                 )}
                 <span>{tab.label}</span>
                 <span
-                  className={`rounded-full px-1.5 py-0.5 font-label-sm text-label-sm ${
-                    tab.live
-                      ? 'bg-live/15 text-live'
-                      : 'bg-surface-container text-on-surface-variant'
-                  }`}
+                  className={cn(
+                    'rounded-full px-1.5 py-0.5 font-label-sm text-label-sm',
+                    tab.live ? 'bg-live/15 text-live' : 'bg-surface-container text-on-surface-variant',
+                  )}
                 >
                   {tab.count}
                 </span>

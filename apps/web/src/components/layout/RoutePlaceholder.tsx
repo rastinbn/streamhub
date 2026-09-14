@@ -1,4 +1,5 @@
 import { Link2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export default function RoutePlaceholder({
   route,
@@ -21,9 +22,7 @@ export default function RoutePlaceholder({
         </p>
         <div className="mt-md inline-flex items-center gap-1.5 rounded-full bg-surface-variant/60 px-3 py-1">
           <span
-            className={`h-1.5 w-1.5 rounded-full ${
-              status === 'draft' ? 'bg-online' : 'bg-outline-variant'
-            }`}
+            className={cn('h-1.5 w-1.5 rounded-full', status === 'draft' ? 'bg-online' : 'bg-outline-variant')}
           />
           <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wide">
             {status === 'draft' ? 'In progress' : 'Not built yet'}

@@ -15,6 +15,7 @@ import { ApiError, streamsApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { formatCompact, formatDuration, timeAgo } from '@/lib/format';
 import { RTMP_BASE_URL } from '@/lib/hls';
+import { cn } from '@/lib/utils';
 import type { StreamPublic } from '@streamhub/types';
 
 export default function DashboardStreamPage() {
@@ -197,11 +198,12 @@ export default function DashboardStreamPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-label-sm ${
+                      className={cn(
+                        'inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-label-sm',
                         stream.status === 'LIVE'
                           ? 'bg-error/10 text-error'
-                          : 'bg-surface-variant text-on-surface-variant'
-                      }`}
+                          : 'bg-surface-variant text-on-surface-variant',
+                      )}
                     >
                       {stream.status === 'LIVE' && (
                         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-error" />

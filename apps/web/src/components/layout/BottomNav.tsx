@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Home, Compass, Tv, LayoutGrid, CircleUserRound } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { cn } from '@/lib/utils';
 
 const NAV_ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/', label: 'Home', icon: Home },
@@ -40,11 +41,12 @@ export default function BottomNav() {
               key={item.label}
               href={item.href}
               aria-current={active ? 'page' : undefined}
-              className={`flex min-h-[44px] min-w-[56px] flex-col items-center justify-center gap-0.5 transition-colors ${
+              className={cn(
+                'flex min-h-[44px] min-w-[56px] flex-col items-center justify-center gap-0.5 transition-colors',
                 active
                   ? 'font-bold text-primary-container drop-shadow-[0_0_8px_rgba(145,71,255,0.6)]'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              }`}
+                  : 'text-on-surface-variant hover:text-on-surface',
+              )}
             >
               <Icon className="h-6 w-6" strokeWidth={active ? 2.25 : 2} />
               <span className="font-label-sm text-label-sm">{item.label}</span>

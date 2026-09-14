@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import { reportsApi, type ReportListQuery } from '@/lib/api';
 import { useRouteRefreshKey } from '@/lib/data-sync';
 import { formatDate } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import {
   AdminTd,
   AdminTh,
@@ -31,7 +32,7 @@ const LIMIT = 20;
 
 function StatusBadge({ status }: { status: ReportStatus }) {
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-label-sm ring-1 ${STATUS_STYLES[status]}`}>
+    <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-label-sm ring-1', STATUS_STYLES[status])}>
       {status}
     </span>
   );

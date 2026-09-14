@@ -16,6 +16,7 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { analyticsApi, usersApi } from '@/lib/api';
 import { formatCompact, formatSeconds, timeAgo } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import type { AnalyticsOverview, ChannelPublic, StreamAnalyticsView } from '@streamhub/types';
 
 export default function DashboardOverviewPage() {
@@ -297,11 +298,12 @@ export default function DashboardOverviewPage() {
                 className="flex items-start gap-3 rounded-lg p-2 transition-colors hover:bg-surface-variant/30"
               >
                 <div
-                  className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded ${
+                  className={cn(
+                    'mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded border border-outline-variant/30',
                     stream.status === 'LIVE'
                       ? 'bg-error/20 text-error'
-                      : 'bg-surface-variant text-on-surface-variant'
-                  } border border-outline-variant/30`}
+                      : 'bg-surface-variant text-on-surface-variant',
+                  )}
                 >
                   {stream.status === 'LIVE' ? (
                     <span className="h-2 w-2 animate-pulse rounded-full bg-error" />

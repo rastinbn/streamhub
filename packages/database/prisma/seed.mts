@@ -142,12 +142,15 @@ interface SeedStream {
 }
 
 const STREAMS: SeedStream[] = [
-  // --- Live right now ---
-  { id: 'stream_live_ninja', channelId: 'ch_ninja', title: 'Late Night Just Chatting — come hang out', category: 'Just Chatting', status: 'LIVE', startedAt: hoursAgo(1.4), viewerCount: 128 },
-  { id: 'stream_live_luna', channelId: 'ch_luna', title: 'Hades speedrun — PB attempt #47', category: 'Gaming', status: 'LIVE', startedAt: hoursAgo(2.1), viewerCount: 342 },
-  { id: 'stream_live_kai', channelId: 'ch_kai', title: 'Chill beats to study/relax to', category: 'Music', status: 'LIVE', startedAt: hoursAgo(3.2), viewerCount: 87 },
-  { id: 'stream_live_ada', channelId: 'ch_ada', title: 'Building an analytics dashboard live', category: 'Science & Tech', status: 'LIVE', startedAt: minutesAgo(28), viewerCount: 45 },
-  { id: 'stream_live_mammad', channelId: 'ch_mammad', title: 'Rank grind — Valorant ranked climb', category: 'Gaming', status: 'LIVE', startedAt: minutesAgo(12), viewerCount: 23 },
+  // --- Finished broadcasts ---
+  // Every seeded stream is ENDED/OFFLINE by design: "live" on StreamHub is
+  // derived from what MediaMTX is actually broadcasting right now (see the
+  // API's MediaMTX reconciler), so the seed must not mint fake LIVE rows.
+  { id: 'stream_live_ninja', channelId: 'ch_ninja', title: 'Late Night Just Chatting — come hang out', category: 'Just Chatting', status: 'ENDED', startedAt: hoursAgo(1.4), endedAt: hoursAgo(0.5), viewerCount: 0 },
+  { id: 'stream_live_luna', channelId: 'ch_luna', title: 'Hades speedrun — PB attempt #47', category: 'Gaming', status: 'ENDED', startedAt: hoursAgo(2.1), endedAt: hoursAgo(1.2), viewerCount: 0 },
+  { id: 'stream_live_kai', channelId: 'ch_kai', title: 'Chill beats to study/relax to', category: 'Music', status: 'ENDED', startedAt: hoursAgo(3.2), endedAt: hoursAgo(2.4), viewerCount: 0 },
+  { id: 'stream_live_ada', channelId: 'ch_ada', title: 'Building an analytics dashboard live', category: 'Science & Tech', status: 'ENDED', startedAt: minutesAgo(28), endedAt: minutesAgo(25), viewerCount: 0 },
+  { id: 'stream_live_mammad', channelId: 'ch_mammad', title: 'Rank grind — Valorant ranked climb', category: 'Gaming', status: 'ENDED', startedAt: minutesAgo(12), endedAt: minutesAgo(5), viewerCount: 0 },
   // --- Finished (past 2 weeks) ---
   // daysAgo(d, h) subtracts MORE for larger h, so start offsets must be
   // LARGER than end offsets (startedAt earlier than endedAt).
@@ -160,13 +163,13 @@ const STREAMS: SeedStream[] = [
   { id: 'stream_end_kai_2', channelId: 'ch_kai', title: 'Vinyl digging stream', category: 'Music', status: 'ENDED', startedAt: daysAgo(9, 21), endedAt: daysAgo(9, 18), viewerCount: 0 },
   { id: 'stream_end_ada_1', channelId: 'ch_ada', title: 'Deploying at midnight — why do we do this', category: 'Science & Tech', status: 'ENDED', startedAt: daysAgo(6, 1.8), endedAt: daysAgo(5, 22), viewerCount: 0 },
   { id: 'stream_end_ada_2', channelId: 'ch_ada', title: 'Writing a database from scratch', category: 'Science & Tech', status: 'ENDED', startedAt: daysAgo(12, 19.5), endedAt: daysAgo(12, 16.5), viewerCount: 0 },
-  // --- New streamers: remaining categories covered ---
-  { id: 'stream_live_inks', channelId: 'ch_inks', title: 'Inktober warm-up: foxes and swords', category: 'Art', status: 'LIVE', startedAt: minutesAgo(35), viewerCount: 41 },
-  { id: 'stream_live_matchday', channelId: 'ch_matchday', title: 'Champions League watch party + chatter', category: 'Sports', status: 'LIVE', startedAt: hoursAgo(1.5), viewerCount: 156 },
-  { id: 'stream_live_chef', channelId: 'ch_chef', title: '30-minute weeknight pasta from scratch', category: 'Food & Drink', status: 'LIVE', startedAt: minutesAgo(50), viewerCount: 73 },
-  { id: 'stream_live_rex', channelId: 'ch_rex', title: 'Backpacking through the Alps, day 3', category: 'Travel', status: 'LIVE', startedAt: hoursAgo(2.6), viewerCount: 58 },
-  { id: 'stream_live_sofa', channelId: 'ch_sofa', title: 'Series finale rewatch party', category: 'Movies & TV', status: 'LIVE', startedAt: minutesAgo(15), viewerCount: 112 },
-  { id: 'stream_live_flex', channelId: 'ch_flex', title: 'Morning mobility and coffee', category: 'Fitness', status: 'LIVE', startedAt: minutesAgo(40), viewerCount: 36 },
+  // --- New streamers: remaining categories covered (all finished) ---
+  { id: 'stream_live_inks', channelId: 'ch_inks', title: 'Inktober warm-up: foxes and swords', category: 'Art', status: 'ENDED', startedAt: minutesAgo(35), endedAt: minutesAgo(30), viewerCount: 0 },
+  { id: 'stream_live_matchday', channelId: 'ch_matchday', title: 'Champions League watch party + chatter', category: 'Sports', status: 'ENDED', startedAt: hoursAgo(1.5), endedAt: hoursAgo(1), viewerCount: 0 },
+  { id: 'stream_live_chef', channelId: 'ch_chef', title: '30-minute weeknight pasta from scratch', category: 'Food & Drink', status: 'ENDED', startedAt: minutesAgo(50), endedAt: minutesAgo(40), viewerCount: 0 },
+  { id: 'stream_live_rex', channelId: 'ch_rex', title: 'Backpacking through the Alps, day 3', category: 'Travel', status: 'ENDED', startedAt: hoursAgo(2.6), endedAt: hoursAgo(2), viewerCount: 0 },
+  { id: 'stream_live_sofa', channelId: 'ch_sofa', title: 'Series finale rewatch party', category: 'Movies & TV', status: 'ENDED', startedAt: minutesAgo(15), endedAt: minutesAgo(10), viewerCount: 0 },
+  { id: 'stream_live_flex', channelId: 'ch_flex', title: 'Morning mobility and coffee', category: 'Fitness', status: 'ENDED', startedAt: minutesAgo(40), endedAt: minutesAgo(30), viewerCount: 0 },
   { id: 'stream_end_inks_1', channelId: 'ch_inks', title: 'Digital painting: lighting practice', category: 'Art', status: 'ENDED', startedAt: daysAgo(3, 20), endedAt: daysAgo(3, 17), viewerCount: 0 },
   { id: 'stream_end_matchday_1', channelId: 'ch_matchday', title: 'Derby-day pre-match build-up', category: 'Sports', status: 'ENDED', startedAt: daysAgo(5, 19), endedAt: daysAgo(5, 16), viewerCount: 0 },
   { id: 'stream_end_chef_1', channelId: 'ch_chef', title: 'Tasting weird mystery snacks', category: 'Food & Drink', status: 'ENDED', startedAt: daysAgo(2, 17.5), endedAt: daysAgo(2, 14.5), viewerCount: 0 },

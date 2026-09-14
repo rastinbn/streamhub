@@ -900,17 +900,19 @@ describe('Streams (e2e)', () => {
       expect(second.body.data.startedAt).toBe(first.body.data.startedAt);
     });
 
-    it('does not end seeded/revoked streams (null key hash) and tolerates unknown paths', async () => {
+    it('corrects fake-live placeholder rows (null key hash) to OFFLINE and tolerates unknown paths', async () => {
       const owner = await registerUserWithChannel();
       const channel = await prisma.channel.findUnique({ where: { ownerId: owner.userId } });
       const seeded = prisma.seedStream({ channelId: channel!.id, status: 'LIVE', streamKeyHash: null });
       const streamsService = app.get(StreamsService);
 
-      // Unknown path + missing seeded path: neither may throw or mutate.
+      // Unknown paths may not throw; a null-key "LIVE" row can never be a
+      // real MediaMTX broadcast, so the reconciler corrects it to OFFLINE.
       await streamsService.reconcileWithPaths(['sk_live_unknown-path', 'another/unknown']);
 
       const row = await prisma.stream.findUnique({ where: { id: seeded.id } });
-      expect(row?.status).toBe('LIVE');
+      expect(row?.status).toBe('OFFLINE');
+      expect(row?.endedAt).toBeNull();
     });
   });
 });

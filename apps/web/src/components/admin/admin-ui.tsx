@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import type { Role, StreamStatus } from '@streamhub/types';
 import { useAuth } from '@/lib/auth-context';
+import { cn } from '@/lib/utils';
 
 const STATUS_STYLES: Record<StreamStatus, string> = {
   LIVE: 'bg-live/10 text-live ring-live/30',
@@ -19,7 +20,7 @@ export const STATUS_LABELS: Record<StreamStatus, string> = {
 export function StatusBadge({ status }: { status: StreamStatus }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-label-sm ring-1 ${STATUS_STYLES[status]}`}
+      className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-label-sm ring-1', STATUS_STYLES[status])}
     >
       {status === 'LIVE' && <span aria-hidden className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-live" />}
       {STATUS_LABELS[status]}
@@ -36,7 +37,7 @@ const ROLE_STYLES: Record<Role, string> = {
 
 export function RoleBadge({ role }: { role: Role }) {
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-label-sm ring-1 ${ROLE_STYLES[role]}`}>
+    <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-label-sm ring-1', ROLE_STYLES[role])}>
       {role}
     </span>
   );

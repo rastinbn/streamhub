@@ -95,7 +95,6 @@ export default function WatchPage() {
       avatarUrl: channel?.avatar ?? PLACEHOLDER_AVATAR,
       avatarAlt: PLACEHOLDER_ALT,
       followers: channel ? formatCompact(chat.liveFollowersCount ?? channel.followersCount) : MISSING_NAME,
-      verified: false,
     },
     category: stream.category ?? channel?.category ?? MISSING_NAME,
     tags,

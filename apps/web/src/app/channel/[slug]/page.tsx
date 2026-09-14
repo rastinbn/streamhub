@@ -8,6 +8,7 @@ import { BadgeCheck, Heart, Bell, Radio, VideoOff, Share2 } from 'lucide-react';
 import { useChannelBySlug } from '@/hooks/useChannelBySlug';
 import { useAuth } from '@/lib/auth-context';
 import { formatCompact } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import {
   MISSING_NAME,
   PLACEHOLDER_ALT,
@@ -112,11 +113,12 @@ export default function ChannelPage() {
             type="button"
             onClick={() => void toggleFollow()}
             aria-pressed={isFollowing}
-            className={`flex flex-1 items-center justify-center gap-xs rounded-DEFAULT px-lg py-sm text-label-md font-label-md transition-colors duration-150 active:scale-95 sm:flex-none ${
+            className={cn(
+              'flex flex-1 items-center justify-center gap-xs rounded-DEFAULT px-lg py-sm text-label-md font-label-md transition-colors duration-150 active:scale-95 sm:flex-none',
               isFollowing
                 ? 'border border-outline-variant/30 bg-surface-container text-on-surface hover:bg-surface-container-high'
-                : 'bg-primary text-on-primary shadow-md shadow-primary/20 hover:bg-primary-fixed'
-            }`}
+                : 'bg-primary text-on-primary shadow-md shadow-primary/20 hover:bg-primary-fixed',
+            )}
           >
             <Heart className="h-[18px] w-[18px]" fill={isFollowing ? 'currentColor' : 'none'} />
             {isFollowing ? 'Following' : 'Follow'}
@@ -127,11 +129,12 @@ export default function ChannelPage() {
             onClick={() => setNotifyOn((v) => !v)}
             aria-pressed={notifyOn}
             aria-label={notifyOn ? 'Turn off notifications' : 'Turn on notifications'}
-            className={`flex h-10 w-10 items-center justify-center rounded-DEFAULT border border-outline-variant/30 p-sm transition-colors duration-150 active:scale-95 ${
+            className={cn(
+              'flex h-10 w-10 items-center justify-center rounded-DEFAULT border border-outline-variant/30 p-sm transition-colors duration-150 active:scale-95',
               notifyOn
                 ? 'bg-primary-container text-on-primary-container'
-                : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
-            }`}
+                : 'bg-surface-container text-on-surface hover:bg-surface-container-high',
+            )}
           >
             <Bell className="h-5 w-5" fill={notifyOn ? 'currentColor' : 'none'} />
           </button>
@@ -160,11 +163,12 @@ export default function ChannelPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab(tab)}
-                className={`relative cursor-pointer py-md text-label-md font-label-md transition-colors ${
-                  activeTab === tab
-                    ? "text-primary after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-primary after:content-['']"
-                    : 'text-on-surface-variant hover:text-on-surface'
-                }`}
+className={cn(
+                'relative cursor-pointer py-md text-label-md font-label-md transition-colors',
+                activeTab === tab
+                  ? "text-primary after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-primary after:content-['']"
+                  : 'text-on-surface-variant hover:text-on-surface',
+              )}
               >
                 {tab}
               </button>

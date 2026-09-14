@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { Flag, Heart, MoreVertical } from 'lucide-react';
 import type { WatchStream } from './types';
+import { cn } from '@/lib/utils';
 
 export default function StreamInfo({
   stream,
@@ -122,9 +123,10 @@ export default function StreamInfo({
       >
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-surface-container-low pointer-events-none group-hover:to-surface-container" />
         <p
-          className={`font-body-sm text-body-sm text-on-surface-variant leading-relaxed whitespace-pre-line relative z-10 ${
-            descExpanded ? '' : 'max-h-20 overflow-hidden'
-          }`}
+          className={cn(
+            'relative z-10 font-body-sm text-body-sm text-on-surface-variant leading-relaxed whitespace-pre-line',
+            !descExpanded && 'max-h-20 overflow-hidden',
+          )}
         >
           {stream.description}
         </p>

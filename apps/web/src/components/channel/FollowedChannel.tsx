@@ -1,3 +1,5 @@
+import { cn } from '@/lib/utils';
+
 export interface FollowedChannelProps {
   id: number;
   avatarUrl: string;
@@ -23,9 +25,10 @@ export default function FollowedChannel({ id, name, avatarUrl, avatarAlt, status
             decoding="async"
           />
           <div
-            className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-surface-container-low ${
-              statusColor === 'live' ? 'bg-live' : 'bg-online'
-            }`}
+            className={cn(
+              'absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-surface-container-low',
+              statusColor === 'live' ? 'bg-live' : 'bg-online',
+            )}
           />
         </div>
         <span className="text-body-sm font-body-sm truncate max-w-[100px]">{name}</span>

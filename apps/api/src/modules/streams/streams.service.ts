@@ -362,15 +362,18 @@ export class StreamsService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * MediaMTX has no shell/curl in its official image and v1.x removed the
-   * old runOnPublish/runOnUnpublish exec hooks, so the API discovers
-   * publishes by polling the Control API: every ready path is a live
-   * broadcast. Transitions reuse `handlePublish` / the shared finalize path
-   * exactly — there is no second copy of the LIVE/ENDED logic.
-   *
-   * Streams with a null `streamKeyHash` (seeded demo rows, revoked keys)
-   * are never touched: they aren't real broadcast sessions.
-   */
+* MediaMTX has no shell/curl in its official image and v1.x removed the
+    * old runOnPublish/runOnUnpublish exec hooks, so the API discovers
+    * publishes by polling the Control API: every ready path is a live
+    * broadcast. Transitions reuse `handlePublish` / the shared finalize path
+    * exactly — there is no second copy of the LIVE/ENDED logic.
+    *
+    * LIVE is a statement about what is happening RIGHT NOW on MediaMTX, so
+    * no row holding `status: 'LIVE'` escapes correction: a stream whose key
+    * is no longer publishing ends its session (ENDED), and a demo/placeholder
+    * row with no `streamKeyHash` can never broadcast and is flipped to
+    * OFFLINE. This is what keeps "live" honest on the web.
+    */
   async reconcileLiveState(): Promise<void> {
     if (this.reconciling) return;
     this.reconciling = true;
@@ -392,12 +395,19 @@ export class StreamsService implements OnModuleInit, OnModuleDestroy {
       await this.handlePublish(path);
     }
 
-    // Ended: LIVE streams whose key is no longer publishing.
+    // Ended / never-live: LIVE rows whose key is no longer publishing (or
+    // that could never publish at all — null streamKeyHash means a seeded
+    // demo/placeholder, not a real broadcast).
     const readyHashes = new Set(readyPaths.map((p) => hashStreamKey(p)));
     const liveStreams = await this.prisma.stream.findMany({ where: { status: 'LIVE' } });
     for (const stream of liveStreams) {
       if (stream.streamKeyHash && !readyHashes.has(stream.streamKeyHash)) {
         await this.finalizeUnpublish(stream);
+      } else if (!stream.streamKeyHash) {
+        await this.prisma.stream.update({
+          where: { id: stream.id },
+          data: { status: 'OFFLINE', endedAt: null },
+        });
       }
     }
   }

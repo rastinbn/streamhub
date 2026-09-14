@@ -16,10 +16,12 @@ import {
   Radio,
   BarChart3,
   Clapperboard,
+  MonitorPlay,
 } from 'lucide-react';
 import FollowedChannels from '@/components/channel/FollowedChannels';
 import { useAuth } from '@/lib/auth-context';
 import { canStream } from '@/lib/roles';
+import { cn } from '@/lib/utils';
 
 export type NavItem = {
   href: string;
@@ -65,12 +67,12 @@ export default function Sidebar({ open, onClose }: SideBarProps) {
   }, [open, onClose]);
 
   const itemClasses = (active: boolean) =>
-    `mx-2 flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-150 active:opacity-80 ` +
-    `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+    cn(
+      'mx-2 flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-150 active:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
       active
         ? 'bg-primary-container font-semibold text-on-primary-container'
-        : 'text-on-surface-variant hover:bg-surface-variant hover:text-on-surface'
-    }`;
+        : 'text-on-surface-variant hover:bg-surface-variant hover:text-on-surface',
+    );
 
   const renderItems = (items: NavItem[]) => (
     <ul className="flex flex-col gap-1 px-2">
@@ -100,16 +102,18 @@ export default function Sidebar({ open, onClose }: SideBarProps) {
       <div
         aria-hidden={!open}
         onClick={onClose}
-        className={`fixed inset-0 top-16 z-40 bg-black/50 transition-opacity duration-200 lg:hidden ${
-          open ? 'opacity-100' : 'pointer-events-none opacity-0'
-        }`}
+        className={cn(
+          'fixed inset-0 top-16 z-40 bg-black/50 transition-opacity duration-200 lg:hidden',
+          open ? 'opacity-100' : 'pointer-events-none opacity-0',
+        )}
       />
 
       <aside
         aria-label="Sidebar navigation"
-        className={`fixed left-0 top-16 z-40 flex h-[calc(100vh-64px)] w-60 flex-col gap-1 overflow-y-auto border-r border-outline-variant/30 bg-surface-container-low py-4 shadow-xl transition-transform duration-200 ease-out
-          lg:translate-x-0 lg:shadow-none
-          ${open ? 'translate-x-0' : '-translate-x-full'}`}
+        className={cn(
+          'fixed left-0 top-16 z-40 flex h-[calc(100vh-64px)] w-60 flex-col gap-1 overflow-y-auto border-r border-outline-variant/30 bg-surface-container-low py-4 shadow-xl transition-transform duration-200 ease-out lg:translate-x-0 lg:shadow-none',
+          open ? 'translate-x-0' : '-translate-x-full',
+        )}
       >
         {renderItems(NAV_ITEMS)}
 
@@ -120,6 +124,7 @@ export default function Sidebar({ open, onClose }: SideBarProps) {
             </p>
             {renderItems([
               { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+              { href: '/studio', label: 'Studio', icon: MonitorPlay },
               { href: '/create', label: 'Go live', icon: Radio },
               { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
               { href: '/dashboard/content', label: 'Content', icon: Clapperboard },

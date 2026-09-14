@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { StreamsService } from './streams.service';
 import { CreateStreamDto } from './dto/create-stream.dto';
 import { UpdateStreamDto } from './dto/update-stream.dto';
@@ -56,6 +57,7 @@ export class StreamsController {
   // Authenticated via a shared secret (`MediaMtxWebhookGuard`), not JWT:
   // these calls originate from MediaMTX itself, not a logged-in user.
 
+  @SkipThrottle()
   @UseGuards(MediaMtxWebhookGuard)
   @Post('webhooks/mediamtx/publish')
   async handlePublishWebhook(@Body() dto: MediaMtxWebhookDto) {
@@ -70,6 +72,7 @@ export class StreamsController {
     return { success: true, data: stream };
   }
 
+  @SkipThrottle()
   @UseGuards(MediaMtxWebhookGuard)
   @Post('webhooks/mediamtx/unpublish')
   async handleUnpublishWebhook(@Body() dto: MediaMtxWebhookDto) {
@@ -92,6 +95,7 @@ export class StreamsController {
    * into its authHTTPAddress, which the guard accepts alongside the
    * header.
    */
+  @SkipThrottle()
   @UseGuards(MediaMtxWebhookGuard)
   @HttpCode(200)
   @Post('webhooks/mediamtx/auth')

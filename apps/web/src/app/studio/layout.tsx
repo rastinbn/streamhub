@@ -1,0 +1,11 @@
+import type { Metadata } from 'next';
+import StreamerRequired from '@/components/layout/StreamerRequired';
+
+export const metadata: Metadata = {
+  title: 'Creator Studio',
+  robots: { index: false, follow: false },
+};
+
+export default function StudioLayout({ children }: { children: React.ReactNode }) {
+  return <StreamerRequired>{children}</StreamerRequired>;
+}

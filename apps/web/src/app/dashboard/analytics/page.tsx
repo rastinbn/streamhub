@@ -6,6 +6,7 @@ import { AlertCircle, ArrowLeft, Eye, MonitorPlay, Timer, TrendingUp } from 'luc
 import { useAuth } from '@/lib/auth-context';
 import { analyticsApi } from '@/lib/api';
 import { formatCompact, formatSeconds, timeAgo } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import type { StreamAnalyticsView } from '@streamhub/types';
 
 export default function DashboardAnalyticsPage() {
@@ -109,11 +110,12 @@ export default function DashboardAnalyticsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-label-sm ${
+                      className={cn(
+                        'inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-label-sm',
                         row.status === 'LIVE'
                           ? 'bg-error/10 text-error'
-                          : 'bg-surface-variant text-on-surface-variant'
-                      }`}
+                          : 'bg-surface-variant text-on-surface-variant',
+                      )}
                     >
                       {row.status === 'LIVE' && (
                         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-error" />

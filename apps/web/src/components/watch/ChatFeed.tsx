@@ -6,6 +6,7 @@ import { Users, MessageSquare, LogIn, Loader2, MoreVertical, Timer } from 'lucid
 import ChatMessage from './ChatMessage';
 import type { ChatMessage as ChatItem } from './types';
 import type { ChatConnectionState } from '@/hooks/useWatchChat';
+import { cn } from '@/lib/utils';
 
 /**
  * Presentational live-chat feed (header + connection states + message list).
@@ -40,11 +41,10 @@ export default function ChatFeed({
     if (node) node.scrollTop = node.scrollHeight;
   }, [chat.length, connectionStatus, isDesktop]);
 
-  const stateBlock = `flex ${
-    isDesktop ? 'flex-1' : 'min-h-[13rem]'
-  } flex-col items-center justify-center gap-sm ${
-    isDesktop ? 'overflow-y-auto' : ''
-  } bg-background/30 p-3`;
+  const stateBlock = cn(
+    'flex flex-col items-center justify-center gap-sm bg-background/30 p-3',
+    isDesktop ? 'flex-1 overflow-y-auto' : 'min-h-[13rem]',
+  );
 
   return (
     <>
@@ -119,9 +119,10 @@ export default function ChatFeed({
       ) : (
         <div
           ref={scrollRef}
-          className={`flex flex-col gap-sm bg-background/30 p-3 ${
-            isDesktop ? 'flex-1 overflow-y-auto' : ''
-          }`}
+          className={cn(
+            'flex flex-col gap-sm bg-background/30 p-3',
+            isDesktop && 'flex-1 overflow-y-auto',
+          )}
         >
           {chat.map((msg) => (
             <ChatMessage key={msg.id} message={msg} />

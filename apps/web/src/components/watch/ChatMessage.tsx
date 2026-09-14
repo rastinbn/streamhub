@@ -1,5 +1,6 @@
 import { Shield, Star } from 'lucide-react';
 import type { ChatMessage as ChatItem } from './types';
+import { cn } from '@/lib/utils';
 
 export default function ChatMessage({ message }: { message: ChatItem }) {
   if (message.type === 'notice') {
@@ -25,9 +26,10 @@ export default function ChatMessage({ message }: { message: ChatItem }) {
 
   return (
     <div
-      className={`hover:bg-surface-variant/30 p-1.5 rounded transition-colors break-words text-body-sm font-body-sm text-[13px] leading-relaxed ${
-        isMod ? 'bg-surface-variant/20 border-l-2 border-secondary-fixed' : ''
-      }`}
+      className={cn(
+        'hover:bg-surface-variant/30 p-1.5 rounded transition-colors break-words text-body-sm font-body-sm text-[13px] leading-relaxed',
+        isMod && 'bg-surface-variant/20 border-l-2 border-secondary-fixed',
+      )}
     >
       {isMod && (
         <span className="inline-flex items-center align-middle gap-1 mr-1">
@@ -40,9 +42,10 @@ export default function ChatMessage({ message }: { message: ChatItem }) {
         </span>
       )}
       <span
-        className={`font-bold cursor-pointer hover:underline ${
-          isMod ? 'text-secondary-fixed' : isSub ? 'text-primary' : ''
-        }`}
+        className={cn(
+          'font-bold cursor-pointer hover:underline',
+          isMod ? 'text-secondary-fixed' : isSub ? 'text-primary' : '',
+        )}
         style={!isMod && !isSub && message.userColor ? { color: message.userColor } : undefined}
       >
         {message.user}
