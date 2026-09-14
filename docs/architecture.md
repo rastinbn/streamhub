@@ -48,21 +48,29 @@ Two flows exist side by side and only interact at the metadata boundary:
 1. **Control-plane flow (data):** Streamer/viewer actions (start stream, view channel, chat) flow through the web app to the API to Postgres/Redis. This is where stream keys are issued, stream status is recorded, and channel data lives.
 2. **Media-plane flow (video):** The actual video bytes flow from OBS to MediaMTX to the browser, entirely outside of the API/Postgres/Redis path.
 
-**Phase 5 status:** the notification half of this integration is now implemented —
-MediaMTX's `runOnPublish` / `runOnUnpublish` hooks (`infrastructure/streaming/mediamtx.yml`)
-call back to `POST /api/v1/streams/webhooks/mediamtx/{publish,unpublish}`
-(authenticated via a shared secret, not a user JWT — see `MediaMtxWebhookGuard`), which
-flips `Stream.status` between `OFFLINE → LIVE → ENDED` and stamps `startedAt`/`endedAt`.
+**Live-state integration (MediaMTX v1.x):** MediaMTX no longer has the old
+`runOnPublish` / `runOnUnpublish` exec hooks (renamed/removed in v1.x, and the official
+Docker image is distroless — no shell or curl — so exec hooks can't run at all). Instead
+(`infrastructure/streaming/mediamtx.yml`):
+
+- **Publish authorization** is delegated: MediaMTX's native `authMethod: http` makes it
+  `POST /api/v1/streams/webhooks/mediamtx/auth` for every client action, and the API
+  answers 200/401 (allow/deny) per stream key.
+- **`Stream.status` reconciliation** (`OFFLINE → LIVE → ENDED`, `startedAt`/`endedAt`)
+  is driven by the API polling MediaMTX's Control API (`/v3/paths/list`) every 5s;
+  transitions reuse the same `handlePublish` / finalize path as the
+  `POST /api/v1/streams/webhooks/mediamtx/{publish,unpublish}` webhooks, which remain
+  available and authenticated via a shared secret — see `MediaMtxWebhookGuard`.
+
 See `docs/api-contract.md`'s Streams section and `docs/domain-model.md` for the full
 lifecycle and stream-key design.
 
 Publish-time *authentication* (MediaMTX itself refusing to accept RTMP data from an
-unrecognized/revoked key, via `authHTTPAddress`) is **not yet wired up** — the API
-still refuses to ever report an unrecognized key's stream as `LIVE`
-(`handlePublish` returns `401` internally), but the raw RTMP ingest is not yet gated at
-the MediaMTX layer itself. That remains a candidate for a later phase if OBS-side key
-enforcement becomes a requirement; `STREAMING_SERVER_URL` remains reserved for the API
-to reach MediaMTX's own introspection API for that (or similar) purposes.
+unrecognized/revoked key) **is wired up** via MediaMTX's native delegated HTTP auth
+(`authMethod: http` → `authHTTPAddress`): the API answers allow only for keys that map
+to a non-revoked stream on a non-suspended channel. The API also polls MediaMTX's
+Control API (`STREAMING_SERVER_URL`, default `http://localhost:9997`) for live-state
+reconciliation as described above.
 
 ## 4. Responsibilities of Each Service
 
