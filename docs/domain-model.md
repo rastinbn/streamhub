@@ -75,9 +75,13 @@ metadata record — the actual video bytes live in MediaMTX, never in the databa
 enum StreamStatus { OFFLINE LIVE ENDED }
 ```
 
-`status` is the control-plane bridge to the media plane: MediaMTX's `runOnPublish` /
-`runOnUnpublish` hooks call back to the API (`POST /streams/webhooks/mediamtx/{publish,unpublish}`,
-see `docs/api-contract.md`), which flips `OFFLINE → LIVE → ENDED`. There is no
+`status` is the control-plane bridge to the media plane: MediaMTX v1.x delegates
+publish authorization to the API (native `authMethod: http` → `POST
+/streams/webhooks/mediamtx/auth`) and the API reconciles `OFFLINE → LIVE → ENDED` by
+polling MediaMTX's Control API every 5s (the old `runOnPublish`/`runOnUnpublish` exec
+hooks don't exist in v1.x and can't run in the distroless image). The
+`POST /streams/webhooks/mediamtx/{publish,unpublish}` webhooks share the same
+transition logic — see `docs/api-contract.md`. There is no
 transitional `STARTING`/`ENDING` state — a stream is created `OFFLINE` and moves
 directly to `LIVE`/`ENDED` as those events arrive. A `Stream` row is a single session:
 once `ENDED`, a channel broadcasts again by creating a new `Stream`, not by resetting

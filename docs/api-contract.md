@@ -488,10 +488,26 @@ isn't one anymore). If the stream was `LIVE`, it is also transitioned to `ENDED`
 
 ### POST `/streams/webhooks/mediamtx/publish` / `.../unpublish`
 
-Called by MediaMTX itself (see `infrastructure/streaming/mediamtx.yml`'s `runOnPublish`
-/ `runOnUnpublish`), never by end users or the web app. Authenticated via a static
-shared secret in the `x-webhook-secret` header (`MEDIAMTX_WEBHOOK_SECRET` env var on
-both sides) rather than a user JWT.
+Called by the MediaMTX integration (see below), never by end users or the web app.
+Authenticated via a static shared secret in the `x-webhook-secret` header or a
+`?secret=` query parameter (`MEDIAMTX_WEBHOOK_SECRET` env var on both sides) rather
+than a user JWT.
+
+**How live state actually flows (MediaMTX v1.x):** the old `runOnPublish` /
+`runOnUnpublish` exec hooks no longer exist in v1.x and the official Docker image is
+distroless (no shell, no curl), so exec-based hooks cannot run. Two native mechanisms
+replace them — both configured in `infrastructure/streaming/mediamtx.yml`:
+
+1. **Publish authorization — delegated HTTP auth** (`authMethod: http`): every RTMP
+   connection makes MediaMTX `POST /streams/webhooks/mediamtx/auth` with
+   `{action: "publish", path: "<raw stream key>", ...}`; the API answers `200` = allow
+   (key matches a non-revoked stream on a non-suspended channel) or `401` = deny.
+2. **Live-state reconciliation — Control API poller**: the API polls MediaMTX's
+   `/v3/paths/list` every 5s and reconciles status: a ready path whose key is known
+   goes (or stays) `LIVE` via the same `handlePublish` used by the publish webhook;
+   a `LIVE` stream whose path disappeared transitions to `ENDED` exactly as the
+   unpublish webhook does. The webhooks below remain as an alternate/notification
+   path and are still exercised by tests.
 
 Body:
 
@@ -511,6 +527,39 @@ Body:
   disconnect notification), not an error — `data` is `null` in the "unrecognized key"
   case. A matching `LIVE` stream transitions to `ENDED` with `endedAt` set.
 - `401` (from `MediaMtxWebhookGuard`) — missing/incorrect `x-webhook-secret`.
+
+### POST `/streams/webhooks/mediamtx/auth`
+
+MediaMTX's native delegated authentication (`authMethod: http` in
+`infrastructure/streaming/mediamtx.yml`): MediaMTX calls this for **every** client
+action and treats any 2xx response as "allow", anything else as "deny". The response
+is a bare boolean (`true`/`false`) with matching status codes — no `{success, data}`
+envelope, because MediaMTX only inspects the status.
+
+Body (all fields optional — MediaMTX legitimately sends empty values):
+
+```json
+{
+  "user": "", "password": "", "token": "", "ip": "",
+  "action": "publish | read | playback | api | metrics | pprof",
+  "path": "<rtmp path / hls path>",
+  "protocol": "rtmp | hls | ...", "id": "", "query": "", "userAgent": ""
+}
+```
+
+Authorization rules:
+
+- `action: "publish"` — `path` is the raw stream key; allowed only when it maps to a
+  known (non-revoked) stream whose channel is not suspended. `200` allow / `401` deny.
+- `action: "api" | "metrics" | "pprof"` — allowed only when `password` equals
+  `MEDIAMTX_WEBHOOK_SECRET` (this is how the API's own reconciler reads
+  `/v3/paths/list` through MediaMTX).
+- `read` / `playback` and everything else — allowed (viewer gating is the app's job,
+  not the media server's).
+
+The endpoint itself is authenticated by the same shared secret, passed as a
+`?secret=` query parameter baked into `authHTTPAddress` (accepted by
+`MediaMtxWebhookGuard` alongside the header form).
 
 ---
 
