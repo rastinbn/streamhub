@@ -3,18 +3,34 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Menu, Search, Plus, Video, Bell, X, ShieldCheck, LayoutDashboard } from 'lucide-react';
+import {
+  Search,
+  Plus,
+  Video,
+  Bell,
+  X,
+  ShieldCheck,
+  LayoutDashboard,
+  BarChart3,
+  Clapperboard,
+  Settings,
+} from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { isSafeImageSrc } from '@/lib/security';
 import { canStream } from '@/lib/roles';
 
-interface TopNavProps {
-  onMenuClick: () => void;
-  /** Whether the mobile drawer this button controls is currently open. */
-  menuOpen: boolean;
-}
+/** Creator entries shown in the profile menu on <lg screens, where the
+ * sidebar (which hosts the Creator section) is hidden. Mirrors the sidebar's
+ * Creator section list. */
+const MOBILE_CREATOR_ITEMS = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/create', label: 'Go live', icon: Video },
+  { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
+  { href: '/dashboard/content', label: 'Content', icon: Clapperboard },
+  { href: '/dashboard/settings', label: 'Creator settings', icon: Settings },
+];
 
-export default function TopNav({ onMenuClick, menuOpen }: TopNavProps) {
+export default function TopNav() {
   const [query, setQuery] = useState('');
   const [mobileQuery, setMobileQuery] = useState('');
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -75,16 +91,6 @@ export default function TopNav({ onMenuClick, menuOpen }: TopNavProps) {
     >
       {/* Left */}
       <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4">
-        {/* Hamburger (mobile/tablet) */}
-        <button
-          onClick={onMenuClick}
-          aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
-          aria-expanded={menuOpen}
-          className={`${iconBtn} lg:hidden`}
-        >
-          {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
-
         <Link
           href="/"
           className="shrink-0 font-display text-xl font-bold tracking-tight text-primary transition-opacity hover:opacity-80 sm:text-2xl"
@@ -204,14 +210,38 @@ export default function TopNav({ onMenuClick, menuOpen }: TopNavProps) {
                   View profile
                 </Link>
                 {canStream(user.role) && (
-                  <Link
-                    href="/dashboard"
-                    onClick={() => setProfileMenuOpen(false)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-on-surface-variant transition-colors hover:bg-surface-variant/50 hover:text-on-surface"
-                  >
-                    <LayoutDashboard className="h-4 w-4" />
-                    Creator dashboard
-                  </Link>
+                  <>
+                    {/* Desktop: the sidebar already hosts the Creator section,
+                        so the profile menu keeps a single shortcut. */}
+                    <Link
+                      href="/dashboard"
+                      onClick={() => setProfileMenuOpen(false)}
+                      className="hidden px-4 py-2.5 text-sm text-on-surface-variant transition-colors hover:bg-surface-variant/50 hover:text-on-surface lg:block"
+                    >
+                      Creator dashboard
+                    </Link>
+                    {/* <lg: no sidebar, so the full Creator section lives here
+                        (it used to live in the hamburger drawer). */}
+                    <div className="border-t border-outline-variant/30 lg:hidden">
+                      <p className="px-4 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                        Creator
+                      </p>
+                      {MOBILE_CREATOR_ITEMS.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setProfileMenuOpen(false)}
+                            className="flex items-center gap-2 px-4 py-2.5 text-sm text-on-surface-variant transition-colors hover:bg-surface-variant/50 hover:text-on-surface"
+                          >
+                            <Icon className="h-4 w-4" />
+                            {item.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
                 <Link
                   href="/settings"

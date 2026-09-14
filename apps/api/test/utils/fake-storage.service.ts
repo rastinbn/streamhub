@@ -30,7 +30,8 @@ export class FakeStorageService implements ObjectStorageService {
   }
 
   async stream(key: string, range?: { start: number; end?: number }): Promise<Readable> {
-    const entry = await this.get(key);
+    const entry = this.objects.get(key);
+    if (!entry) throw new Error(`No object at key: ${key}`);
     const start = range?.start ?? 0;
     const end = range?.end !== undefined ? Math.min(range.end, entry.data.byteLength - 1) : entry.data.byteLength - 1;
     return NodeReadable.from([entry.data.subarray(start, end + 1)]);
@@ -49,7 +50,8 @@ export class FakeStorageService implements ObjectStorageService {
   }
 
   async stat(key: string): Promise<StoredObjectInfo> {
-    const entry = await this.get(key);
+    const entry = this.objects.get(key);
+    if (!entry) throw new Error(`No object at key: ${key}`);
     return entry.info;
   }
 }

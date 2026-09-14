@@ -1,7 +1,22 @@
-import { Controller, Get, Inject, NotFoundException, Param, Req, Res, StreamableFile } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  NotFoundException,
+  Param,
+  Post,
+  Req,
+  Res,
+  StreamableFile,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { JwtAuthGuard, type RequestWithUser } from '../../common/guards/jwt-auth.guard';
 import { OBJECT_STORAGE } from '../../storage/object-storage.providers';
 import type { ObjectStorageService } from '../../storage/object-storage.service';
+import { MediaService } from './media.service';
+import { UploadThumbnailDto } from './dto/upload-thumbnail.dto';
 
 /**
  * Phase 9 — media delivery. Serves objects from the configured storage
@@ -16,7 +31,20 @@ import type { ObjectStorageService } from '../../storage/object-storage.service'
  */
 @Controller('media')
 export class MediaController {
-  constructor(@Inject(OBJECT_STORAGE) private readonly storage: ObjectStorageService) {}
+  constructor(
+    @Inject(OBJECT_STORAGE) private readonly storage: ObjectStorageService,
+    private readonly media: MediaService,
+  ) {}
+
+  /**
+   * Streamer upload of a go-live thumbnail. Auth-only, and the object is
+   * stored under the caller's own channel prefix (see `MediaService`).
+   */
+  @UseGuards(JwtAuthGuard)
+  @Post('thumbnails')
+  async uploadThumbnail(@Req() req: RequestWithUser, @Body() dto: UploadThumbnailDto) {
+    return { success: true, data: await this.media.uploadThumbnail(req.user.sub, dto) };
+  }
 
   @Get('*')
   async streamMedia(
@@ -24,10 +52,16 @@ export class MediaController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
-    // Wildcard segments arrive as `0: vods`, `1: <channelId>`, ... — the
-    // storage key is everything after the controller prefix.
-    const parts = Object.values(params).map((p) => encodeURIComponent(p === undefined ? '' : p));
-    const storageKey = parts.join('/');
+    // Nest's `*` splat is version-dependent: it may arrive as numbered
+    // per-segment params (`0: vods`, `1: <channelId>`, ...) or as a single
+    // composite string (`vods/<channelId>/.../recording.mp4`). Either way,
+    // the storage key is the remainder after the controller prefix joined by
+    // `/`. Split (so a composite string becomes its segments) then join; the
+    // app-controlled keys are URL-safe, so no re-encoding is needed.
+    const storageKey = Object.values(params)
+      .flatMap((segment) => String(segment ?? '').split('/'))
+      .filter((segment) => segment.length > 0)
+      .join('/');
 
     if (!(await this.storage.exists(storageKey))) {
       throw new NotFoundException('Not found');

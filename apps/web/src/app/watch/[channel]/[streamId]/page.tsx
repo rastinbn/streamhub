@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useParams, useRouter, notFound } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import VideoPlayer from '@/components/watch/VideoPlayer';
@@ -42,6 +43,17 @@ export default function WatchPage() {
   // viewers count toward a stream's live viewer number.
   useViewerHeartbeat(params.streamId, stream?.status === 'LIVE' && !isLoading && !!user && !loading);
 
+  // Realtime clock: while the broadcast is LIVE, tick every second so the
+  // stream time below counts up live (viewer count already streams in over
+  // the chat socket via `liveViewerCount`).
+  const isLive = stream?.status === 'LIVE';
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!isLive) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [isLive]);
+
   async function toggleFollow() {
     if (!stream || !accessToken) {
       router.push('/login');
@@ -80,12 +92,15 @@ export default function WatchPage() {
     new Set([stream.category, channel?.category].filter((v): v is string => Boolean(v))),
   );
 
-  const isLive = stream.status === 'LIVE';
-
   const watchStream: WatchStream = {
     title: stream.title ?? UNTITLED,
     viewerCount: formatCompact(chat.liveViewerCount ?? status?.viewerCount ?? stream.viewerCount),
-    duration: formatDuration(status?.startedAt ?? stream.startedAt, status?.endedAt ?? stream.endedAt),
+    duration: formatDuration(
+      status?.startedAt ?? stream.startedAt,
+      // Live broadcasts count up to the tick's "now"; ended ones freeze at
+      // their endedAt.
+      isLive ? new Date(now).toISOString() : (status?.endedAt ?? stream.endedAt),
+    ),
     thumbnailUrl: stream.thumbnail ?? channel?.banner ?? PLACEHOLDER_THUMBNAIL,
     thumbnailAlt: PLACEHOLDER_ALT,
     hlsUrl: isLive ? streamHlsUrl(stream.playbackPath) : null,

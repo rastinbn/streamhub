@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ContentController } from './content.controller';
 import { RecordingsController } from './recordings.controller';
 import { MediaController } from './media.controller';
+import { MediaService } from './media.service';
 import { ContentService } from './content.service';
 
 /**
@@ -11,7 +12,7 @@ import { ContentService } from './content.service';
  */
 @Module({
   controllers: [ContentController, RecordingsController, MediaController],
-  providers: [ContentService],
+  providers: [ContentService, MediaService],
   exports: [ContentService],
 })
 export class ContentModule {}

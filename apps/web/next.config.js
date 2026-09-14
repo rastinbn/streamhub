@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
 const isProduction = process.env.NODE_ENV === 'production';
 
+// The Next origin cannot reach the API's relative media URLs directly, so
+// proxy them: `<img src="/api/v1/media/...">` (uploaded thumbnails, player
+// posters, VOD frames) rewrites to the API instead of 404ing on :3000.
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+const apiOrigin = apiBaseUrl.replace(/\/api\/v1\/?$/, '');
+
 // `unsafe-eval` is only needed by Next.js's dev-time webpack HMR. Dropping it
 // in production meaningfully hardens CSP against script injection: an attacker
 // who lands JavaScript still can't fall back to eval()-based payloads.
@@ -35,6 +41,16 @@ const nextConfig = {
   reactStrictMode: true,
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
+  },
+  async rewrites() {
+    // Keep media delivery on the same origin as the page so CSP's
+    // `img-src 'self'` and the browser work without exposing the API origin.
+    return [
+      {
+        source: '/api/v1/media/:path*',
+        destination: `${apiOrigin}/api/v1/media/:path*`,
+      },
+    ];
   },
   images: {
     remotePatterns: [

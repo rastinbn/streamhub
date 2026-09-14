@@ -1,24 +1,28 @@
 'use client';
 
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import {
   AlertCircle,
   ArrowLeft,
   Check,
   Copy,
+  ImagePlus,
   KeyRound,
+  Loader2,
   MonitorPlay,
   Radio,
   RefreshCw,
+  Trash2,
   UserPlus,
 } from 'lucide-react';
-import { ApiError, channelsApi, streamsApi, usersApi } from '@/lib/api';
+import { ApiError, channelsApi, mediaApi, streamsApi, usersApi, THUMBNAIL_MAX_BYTES } from '@/lib/api';
 import { useCategories } from '@/hooks/useCategories';
 import { useAuth } from '@/lib/auth-context';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { isSafeImageSrc } from '@/lib/security';
 import { HLS_BASE_URL, RTMP_BASE_URL } from '@/lib/hls';
+import { cn } from '@/lib/utils';
 import type { ChannelPublic, StreamWithKey } from '@streamhub/types';
 
 const RTMP_URL = RTMP_BASE_URL;
@@ -34,6 +38,15 @@ function slugify(name: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 40);
+}
+
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('Could not read the image file.'));
+    reader.readAsDataURL(file);
+  });
 }
 
 export default function CreatePage() {
@@ -53,6 +66,9 @@ export default function CreatePage() {
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [thumbnail, setThumbnail] = useState('');
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
+  const thumbnailPreviewRef = useRef<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   // result
@@ -130,6 +146,55 @@ export default function CreatePage() {
     },
     [accessToken, channel, title, category, description, thumbnail],
   );
+
+  /** Uploads a locally chosen thumbnail and stores its media URL in state. */
+  const handleThumbnailFile = useCallback(
+    async (file: File | null | undefined) => {
+      if (!file || !accessToken) return;
+      const isJpeg = file.type === 'image/jpeg';
+      const isPng = file.type === 'image/png';
+      const isWebp = file.type === 'image/webp';
+      if (!isJpeg && !isPng && !isWebp) {
+        setError('Thumbnail must be a JPEG, PNG or WebP image.');
+        return;
+      }
+      if (file.size > THUMBNAIL_MAX_BYTES) {
+        setError('Thumbnail must be 10 MB or smaller.');
+        return;
+      }
+
+      // Instant local preview so the streamer sees what they picked before
+      // the round-trip; the persisted URL replaces it after upload.
+      const objectUrl = URL.createObjectURL(file);
+      if (thumbnailPreviewRef.current) URL.revokeObjectURL(thumbnailPreviewRef.current);
+      thumbnailPreviewRef.current = objectUrl;
+      setThumbnailPreview(objectUrl);
+      setUploadingThumbnail(true);
+      setError(null);
+      try {
+        const dataUrl = await readAsDataUrl(file);
+        const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+        const format: 'jpg' | 'jpeg' | 'png' | 'webp' = isPng ? 'png' : isWebp ? 'webp' : 'jpg';
+        const result = await mediaApi.uploadThumbnail(accessToken, base64, format);
+        setThumbnail(result.url);
+      } catch (err) {
+        if (thumbnailPreviewRef.current) URL.revokeObjectURL(thumbnailPreviewRef.current);
+        thumbnailPreviewRef.current = null;
+        setThumbnailPreview(null);
+        setError(err instanceof Error ? err.message : 'Could not upload the thumbnail.');
+      } finally {
+        setUploadingThumbnail(false);
+      }
+    },
+    [accessToken],
+  );
+
+  const clearThumbnail = useCallback(() => {
+    if (thumbnailPreviewRef.current) URL.revokeObjectURL(thumbnailPreviewRef.current);
+    thumbnailPreviewRef.current = null;
+    setThumbnailPreview(null);
+    setThumbnail('');
+  }, []);
 
   const rotateKey = useCallback(async () => {
     if (!accessToken || !created) return;
@@ -318,17 +383,69 @@ export default function CreatePage() {
             </div>
 
             <div className={inputShell}>
-              <label htmlFor="thumbnail" className="text-label-md font-label-md text-on-surface-variant">
-                Thumbnail URL <span className="text-on-surface-variant/60">(optional)</span>
-              </label>
-              <input
-                id="thumbnail"
-                type="text"
-                value={thumbnail}
-                onChange={(e) => setThumbnail(e.target.value)}
-                className={inputClass}
-                placeholder="https://…"
-              />
+              <span className="text-label-md font-label-md text-on-surface-variant">
+                Thumbnail <span className="text-on-surface-variant/60">(optional)</span>
+              </span>
+              {thumbnailPreview ? (
+                <div className="flex items-start gap-3">
+                  <div className="relative w-full max-w-md overflow-hidden rounded-lg border border-outline-variant/30 bg-surface-container">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={thumbnailPreview}
+                      alt="Thumbnail preview"
+                      width={640}
+                      height={360}
+                      loading="lazy"
+                      decoding="async"
+                      className="aspect-video w-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={clearThumbnail}
+                      aria-label="Remove thumbnail"
+                      title="Remove thumbnail"
+                      className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-md bg-black/60 text-white transition-colors hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <label
+                    className={cn(
+                      'inline-flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-outline-variant/30 bg-surface-container px-3 py-2 text-sm font-semibold text-on-surface-variant transition-colors hover:bg-surface-variant hover:text-on-surface',
+                      uploadingThumbnail && 'pointer-events-none opacity-60',
+                    )}
+                  >
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      disabled={uploadingThumbnail}
+                      className="sr-only"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (file) void handleThumbnailFile(file);
+                      }}
+                    />
+                    {uploadingThumbnail ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ImagePlus className="h-4 w-4" />
+                    )}
+                    {uploadingThumbnail ? 'Uploading…' : 'Choose from your computer'}
+                  </label>
+                  <input
+                    id="thumbnail"
+                    type="text"
+                    value={thumbnail}
+                    onChange={(e) => setThumbnail(e.target.value)}
+                    className={inputClass}
+                    placeholder="…or paste an image URL"
+                  />
+                </>
+              )}
             </div>
 
             <div className="flex items-center justify-between gap-sm pt-sm">

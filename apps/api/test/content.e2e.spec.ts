@@ -2,6 +2,7 @@ import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { Test } from '@nestjs/testing';
 import { ThrottlerStorage } from '@nestjs/throttler';
+import express from 'express';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/database/prisma.service';
@@ -41,7 +42,11 @@ describe('Content (e2e)', () => {
       .useValue({ increment: async () => ({ totalHits: 1, timeToExpire: 0, isBlocked: false, timeToBlockExpire: 0 }) })
       .compile();
 
-    app = moduleRef.createNestApplication();
+    app = moduleRef.createNestApplication({ bodyParser: false });
+    // Same body config as main.ts: base64 thumbnail uploads exceed the
+    // built-in 100 KB JSON limit, so express parses up to 15 MB.
+    app.use(express.json({ limit: '15mb' }));
+    app.use(express.urlencoded({ extended: true, limit: '15mb' }));
     app.useGlobalFilters(new AllExceptionsFilter());
     app.useGlobalPipes(
       new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }),
@@ -465,7 +470,153 @@ describe('Content (e2e)', () => {
       expect(res.body.data).toBeNull();
     });
   });
+// -------------------------------------------------------------------
+  // POST /api/v1/media/thumbnails — streamer go-live thumbnail upload
+  // -------------------------------------------------------------------
+  describe('POST /api/v1/media/thumbnails', () => {
+    const PNG_BYTES = Buffer.from('fake-image-bytes');
+    const PNG_BASE64 = PNG_BYTES.toString('base64');
+
+    it('stores a thumbnail under the caller\u2019s channel prefix and returns a media URL', async () => {
+      const owner = await registerUserWithChannel();
+      const channel = await prisma.channel.findUnique({ where: { ownerId: owner.userId } });
+
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/media/thumbnails')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ data: PNG_BASE64, format: 'png' })
+        .expect(201);
+
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.size).toBe(PNG_BYTES.length);
+      expect(res.body.data.format).toBe('png');
+      expect(res.body.data.url).toMatch(
+        new RegExp(`^/api/v1/media/thumbnails/${channel!.id}/[0-9a-f-]+\\.png$`),
+      );
+      const key = res.body.data.url.replace('/api/v1/media/', '');
+      expect(await storage.exists(key)).toBe(true);
+      expect(Buffer.compare(await storage.get(key), PNG_BYTES)).toBe(0);
+    });
+
+    it('accepts a full data URL payload and normalizes jpeg to a .jpg extension', async () => {
+      const owner = await registerUserWithChannel();
+
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/media/thumbnails')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ data: `data:image/jpeg;base64,${PNG_BASE64}`, format: 'jpeg' })
+        .expect(201);
+
+      expect(res.body.data.url).toMatch(/\.jpg$/);
+      expect(res.body.data.format).toBe('jpg');
+      const key = res.body.data.url.replace('/api/v1/media/', '');
+      expect(await storage.exists(key)).toBe(true);
+    });
+
+    it('requires authentication', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/media/thumbnails')
+        .send({ data: PNG_BASE64, format: 'png' })
+        .expect(401);
+    });
+
+    it('rejects uploads from users without a channel', async () => {
+      const user = await registerUser();
+      await request(app.getHttpServer())
+        .post('/api/v1/media/thumbnails')
+        .set('Authorization', `Bearer ${user.accessToken}`)
+        .send({ data: PNG_BASE64, format: 'png' })
+        .expect(404);
+    });
+
+    it('rejects an unsupported format', async () => {
+      const owner = await registerUserWithChannel();
+      await request(app.getHttpServer())
+        .post('/api/v1/media/thumbnails')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ data: PNG_BASE64, format: 'gif' })
+        .expect(400);
+    });
+
+    it('rejects empty or malformed payloads', async () => {
+      const owner = await registerUserWithChannel();
+      await request(app.getHttpServer())
+        .post('/api/v1/media/thumbnails')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ data: '', format: 'png' })
+        .expect(400);
+      await request(app.getHttpServer())
+        .post('/api/v1/media/thumbnails')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ data: '!!!not-base64!!!', format: 'png' })
+        .expect(400);
+    });
+
+    it('rejects payloads larger than the 10 MB cap', async () => {
+      const owner = await registerUserWithChannel();
+      // 11 MB of binary → base64 → ~15.4 MB JSON body, beyond the DTO max.
+      const big = Buffer.alloc(11 * 1024 * 1024, 0x42).toString('base64');
+      await request(app.getHttpServer())
+        .post('/api/v1/media/thumbnails')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ data: big, format: 'png' })
+        .expect(400);
+    });
+
+    it('serves a stored thumbnail back through the media route', async () => {
+      const owner = await registerUserWithChannel();
+
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/media/thumbnails')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ data: PNG_BASE64, format: 'png' })
+        .expect(201);
+
+      // A real GET exercises Nest's `*` splat param mapping, which is how the
+      // storage key reaches the provider — protecting against a regression
+      // where the splat arrives as one composite string instead of segments.
+      await request(app.getHttpServer())
+        .get(res.body.data.url)
+        .buffer()
+        .parse(bufferPngParser)
+        .expect(200)
+        .expect('Content-Type', 'image/png')
+        .expect('Content-Length', String(PNG_BYTES.length))
+        .expect((response: { body: Buffer }) => {
+          expect(Buffer.compare(response.body as Buffer, PNG_BYTES)).toBe(0);
+        });
+    });
+
+    it('streams byte ranges for stored media', async () => {
+      const owner = await registerUserWithChannel();
+
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/media/thumbnails')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ data: PNG_BASE64, format: 'png' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .get(res.body.data.url)
+        .set('Range', 'bytes=0-3')
+        .buffer()
+        .parse(bufferPngParser)
+        .expect(206)
+        .expect('Accept-Ranges', 'bytes')
+        .expect('Content-Range', `bytes 0-3/${PNG_BYTES.length}`)
+        .expect((response: { body: Buffer }) => {
+          expect(Buffer.compare(response.body as Buffer, PNG_BYTES.subarray(0, 4))).toBe(0);
+        });
+    });
+  });
 });
+
+/** Buffers binary GET bodies (supertest has no built-in image parser). */
+function bufferPngParser(res: { on(event: string, listener: (...args: never[]) => void): unknown }, cb: (err: Error | null, body: Buffer) => void) {
+  const chunks: Buffer[] = [];
+  res.on('data', (chunk: Buffer | string) => chunks.push(Buffer.from(chunk)));
+  res.on('end', () => cb(null, Buffer.concat(chunks)));
+}
 
 /** Same digest scheme as stream-key.util (sha256 of the raw key). */
 import { createHash } from 'node:crypto';

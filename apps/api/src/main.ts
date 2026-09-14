@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
+import express from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -12,7 +13,13 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule, {
     logger,
+    // The built-in parser keeps the default 100 KB JSON limit, which a
+    // base64 thumbnail upload (up to ~13 MB) exceeds. Register express
+    // parsers explicitly with a 15 MB ceiling for `POST /media/thumbnails`.
+    bodyParser: false,
   });
+  app.use(express.json({ limit: '15mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
   // Enables @WebSocketGateway() (chat) to run over Socket.IO on the same
   // HTTP server/port as the REST API.

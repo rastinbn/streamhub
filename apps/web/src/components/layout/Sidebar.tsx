@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   Home,
@@ -16,7 +16,6 @@ import {
   Radio,
   BarChart3,
   Clapperboard,
-  MonitorPlay,
 } from 'lucide-react';
 import FollowedChannels from '@/components/channel/FollowedChannels';
 import { useAuth } from '@/lib/auth-context';
@@ -41,12 +40,9 @@ export const FOOTER_ITEMS: NavItem[] = [
   { href: '/help', label: 'Help', icon: CircleHelp },
 ];
 
-interface SideBarProps {
-  open: boolean;
-  onClose: () => void;
-}
-
-export default function Sidebar({ open, onClose }: SideBarProps) {
+/** Desktop-only aside (hidden below lg). Mobile/tablet navigation is the
+ * bottom nav bar; the Creator section lives in the profile menu there. */
+export default function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
 
@@ -54,17 +50,6 @@ export default function Sidebar({ open, onClose }: SideBarProps) {
     (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href)),
     [pathname],
   );
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    document.body.style.overflow = 'hidden'; // lock scroll while drawer is open
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
-    };
-  }, [open, onClose]);
 
   const itemClasses = (active: boolean) =>
     cn(
@@ -83,7 +68,6 @@ export default function Sidebar({ open, onClose }: SideBarProps) {
           <li key={item.href}>
             <Link
               href={item.href}
-              onClick={onClose}
               className={itemClasses(active)}
               aria-current={active ? 'page' : undefined}
             >
@@ -97,55 +81,39 @@ export default function Sidebar({ open, onClose }: SideBarProps) {
   );
 
   return (
-    <>
-      {/* Backdrop (mobile/tablet only) */}
-      <div
-        aria-hidden={!open}
-        onClick={onClose}
-        className={cn(
-          'fixed inset-0 top-16 z-40 bg-black/50 transition-opacity duration-200 lg:hidden',
-          open ? 'opacity-100' : 'pointer-events-none opacity-0',
-        )}
-      />
+    <aside
+      aria-label="Sidebar navigation"
+      className="fixed left-0 top-16 z-40 hidden h-[calc(100vh-64px)] w-60 flex-col gap-1 overflow-y-auto border-r border-outline-variant/30 bg-surface-container-low py-4 lg:flex"
+    >
+      {renderItems(NAV_ITEMS)}
 
-      <aside
-        aria-label="Sidebar navigation"
-        className={cn(
-          'fixed left-0 top-16 z-40 flex h-[calc(100vh-64px)] w-60 flex-col gap-1 overflow-y-auto border-r border-outline-variant/30 bg-surface-container-low py-4 shadow-xl transition-transform duration-200 ease-out lg:translate-x-0 lg:shadow-none',
-          open ? 'translate-x-0' : '-translate-x-full',
-        )}
-      >
-        {renderItems(NAV_ITEMS)}
-
-        {user && canStream(user.role) && (
-          <div>
-            <p className="px-5 pb-1 pt-3 text-label-sm uppercase tracking-wide text-on-surface-variant">
-              Creator
-            </p>
-            {renderItems([
-              { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-              { href: '/studio', label: 'Studio', icon: MonitorPlay },
-              { href: '/create', label: 'Go live', icon: Radio },
-              { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
-              { href: '/dashboard/content', label: 'Content', icon: Clapperboard },
-              { href: '/dashboard/settings', label: 'Creator settings', icon: Settings },
-            ])}
-          </div>
-        )}
-
-        <FollowedChannels />
-
-        {user?.role === 'ADMIN' && (
-          <div>
-            <p className="px-5 pb-1 pt-3 text-label-sm uppercase tracking-wide text-on-surface-variant">Admin</p>
-            {renderItems([{ href: '/admin', label: 'Admin panel', icon: ShieldCheck }])}
-          </div>
-        )}
-
-        <div className="mt-auto border-t border-outline-variant/30 px-2 pt-4">
-          {renderItems(FOOTER_ITEMS)}
+      {user && canStream(user.role) && (
+        <div>
+          <p className="px-5 pb-1 pt-3 text-label-sm uppercase tracking-wide text-on-surface-variant">
+            Creator
+          </p>
+          {renderItems([
+            { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+            { href: '/create', label: 'Go live', icon: Radio },
+            { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
+            { href: '/dashboard/content', label: 'Content', icon: Clapperboard },
+            { href: '/dashboard/settings', label: 'Creator settings', icon: Settings },
+          ])}
         </div>
-      </aside>
-    </>
+      )}
+
+      <FollowedChannels />
+
+      {user?.role === 'ADMIN' && (
+        <div>
+          <p className="px-5 pb-1 pt-3 text-label-sm uppercase tracking-wide text-on-surface-variant">Admin</p>
+          {renderItems([{ href: '/admin', label: 'Admin panel', icon: ShieldCheck }])}
+        </div>
+      )}
+
+      <div className="mt-auto border-t border-outline-variant/30 px-2 pt-4">
+        {renderItems(FOOTER_ITEMS)}
+      </div>
+    </aside>
   );
 }
