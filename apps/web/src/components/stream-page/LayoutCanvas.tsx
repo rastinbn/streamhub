@@ -1,9 +1,24 @@
 'use client';
 
 import { useMemo } from 'react';
-import type { ChannelPublic, LayoutWidget, StreamPageLayoutDocument } from '@streamhub/types';
+import type { ChannelPublic, StreamPageLayoutDocument } from '@streamhub/types';
 import { WidgetRenderer } from './WidgetRenderer';
+import { mobileSorted } from '@/lib/widget-order';
 import type { WatchStream } from '@/components/watch/types';
+
+/** CSS classes deciding which responsive variant renders. 'auto' follows
+ * the md: breakpoint (the public page's behavior); forced variants are
+ * how the builder's preview device toggle works without a resize. */
+function cnGrid(variant: 'auto' | 'desktop' | 'mobile'): string {
+  if (variant === 'desktop') return 'grid gap-4';
+  if (variant === 'mobile') return 'hidden';
+  return 'hidden gap-4 md:grid';
+}
+function cnStack(variant: 'auto' | 'desktop' | 'mobile'): string {
+  if (variant === 'desktop') return 'hidden';
+  if (variant === 'mobile') return 'flex flex-col gap-4';
+  return 'flex flex-col gap-4 md:hidden';
+}
 
 /**
  * Renders a layout document. Desktop/tablet use the CSS grid the document
@@ -15,24 +30,6 @@ import type { WatchStream } from '@/components/watch/types';
  * Static render path (public page + preview): widgets are NOT draggable
  * here. The builder has its own interactive canvas.
  */
-const MOBILE_PRIORITY: Record<string, number> = {
-  STREAM_PLAYER: 0,
-  CHAT: 1,
-  CHANNEL_INFO: 2,
-  ABOUT: 3,
-  SCHEDULE: 4,
-  SOCIAL_LINKS: 5,
-  RECENT_STREAMS: 6,
-  IMAGE: 7,
-  TEXT: 8,
-};
-
-function mobileSorted(widgets: LayoutWidget[]): LayoutWidget[] {
-  return [...widgets].sort(
-    (a, b) => (MOBILE_PRIORITY[a.type] ?? 9) - (MOBILE_PRIORITY[b.type] ?? 9),
-  );
-}
-
 export default function LayoutCanvas({
   layout,
   channel,
@@ -40,6 +37,7 @@ export default function LayoutCanvas({
   stream,
   liveStreamId,
   viewerCount,
+  variant = 'auto',
 }: {
   layout: StreamPageLayoutDocument;
   channel: ChannelPublic | null;
@@ -47,6 +45,10 @@ export default function LayoutCanvas({
   stream?: WatchStream | null;
   liveStreamId?: string | null;
   viewerCount?: string;
+  /** Which responsive variant to render. 'auto' picks by CSS breakpoint
+   * (default, what the public page uses); 'desktop'/'mobile' force one
+   * variant — the builder's preview device toggle uses this. */
+  variant?: 'auto' | 'desktop' | 'mobile';
 }) {
   const { columns, rowHeight } = layout.grid;
 
@@ -58,7 +60,7 @@ export default function LayoutCanvas({
     <>
       {/* Desktop / tablet: the real grid */}
       <div
-        className="hidden gap-4 md:grid"
+        className={cnGrid(variant)}
         style={{
           gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
           gridAutoRows: `${rowHeight}px`,
@@ -87,7 +89,7 @@ export default function LayoutCanvas({
       </div>
 
       {/* Mobile: single-column stack in priority order */}
-      <div className="flex flex-col gap-4 md:hidden">
+      <div className={cnStack(variant)}>
         {mobileSorted(widgets).map((widget) => (
           <div key={widget.id} className="min-w-0" style={{ minHeight: Math.max(widget.h * rowHeight, 96) }}>
             <WidgetRenderer widget={widget} channel={channel} context={context === 'preview' ? 'preview' : 'public'} stream={stream} liveStreamId={liveStreamId} viewerCount={viewerCount} />

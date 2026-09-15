@@ -109,15 +109,33 @@ reads (cache is best-effort, mirroring the categories pattern).
 
 ## Responsive behavior
 
-- Desktop/tablet (`md`+): the CSS grid described by the document
-  (`gridTemplateColumns: repeat(12, 1fr)`, `gridAutoRows: rowHeight`).
-- Mobile: a single-column stack in a fixed widget-priority order (player →
-  chat → info → about → schedule → social → recent → image → text) with
-  sensible minimum heights — widgets are re-ordered, not shrunk.
+Public page and preview share one render path (`LayoutCanvas`) with three
+variants selected by the `variant` prop (`auto` | `desktop` | `mobile`):
 
-The builder canvas is a react-grid-layout v2 `ResponsiveGridLayout`
-(12 cols, rowHeight 40, no compaction) — layout math matches the public
-renderer exactly.
+- Desktop/tablet (`md`+, `variant="desktop"` forces it): the CSS grid
+  described by the document (`gridTemplateColumns: repeat(12, 1fr)`,
+  `gridAutoRows: rowHeight`).
+- Mobile (`variant="mobile"` forces it): a single-column stack in a fixed
+  widget-priority order (player → chat → info → about → schedule → social →
+  recent → image → text, shared with the builder via
+  `lib/widget-order.ts`) with sensible minimum heights — widgets are
+  re-ordered, not shrunk.
+- `variant="auto"` (the public page) picks between the two at the `md`
+  CSS breakpoint; no JS resize listener is involved.
+
+The builder mirrors this on both sides:
+
+- **Canvas** — at `md`+ it is a react-grid-layout v2 `ResponsiveGridLayout`
+  (12 cols, rowHeight 40, no compaction; layout math matches the public
+  renderer exactly). Below `md` the drag grid is replaced by the same
+  single-column priority stack the public mobile page uses — phone users
+  can add/select/remove widgets there, but precise drag placement needs a
+  tablet/desktop (a 12-column drag surface is ~25px/column on a phone).
+- **Preview** has an explicit Desktop/Mobile device toggle so the two
+  responsive variants are verifiable from any screen; the toggle defaults
+  to the editor's own screen class.
+- **Panes** order canvas-first on small screens (widget library and
+  settings follow); the three-pane layout is restored at `lg`.
 
 ## Security considerations
 

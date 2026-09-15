@@ -13,12 +13,14 @@ import {
   Info,
   Layers,
   MessageSquare,
+  Monitor,
   MonitorPlay,
   Radio,
   RotateCcw,
   Save,
   Send,
   Settings2,
+  Smartphone,
   Trash2,
   Type,
 } from 'lucide-react';
@@ -31,7 +33,10 @@ import { useAuth } from '@/lib/auth-context';
 import { cloneDefaultLayoutDocument } from '@/lib/default-layout';
 import { isSafeImageSrc } from '@/lib/security';
 import { cn } from '@/lib/utils';
-import { WIDGET_TYPES, type LayoutWidget, type MyChannelLayout, type WidgetType } from '@streamhub/types';
+import { mobileSorted } from '@/lib/widget-order';
+import LayoutCanvas from '@/components/stream-page/LayoutCanvas';
+import { WidgetRenderer } from '@/components/stream-page/WidgetRenderer';
+import { WIDGET_TYPES, type ChannelPublic, type LayoutWidget, type MyChannelLayout, type WidgetType } from '@streamhub/types';
 
 const WIDGET_LABELS: Record<WidgetType, string> = {
   STREAM_PLAYER: 'Stream player',
@@ -96,6 +101,11 @@ export default function LayoutBuilderPage() {
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
+  // Preview device toggle — defaults to the editor's own screen class so a
+  // phone streamer immediately sees the mobile variant.
+  const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
+  // Channel data for preview widgets (channel info / about / recent streams).
+  const [channel, setChannel] = useState<ChannelPublic | null>(null);
 
   // Load the streamer's channel + layout on mount.
   useEffect(() => {
@@ -105,6 +115,7 @@ export default function LayoutBuilderPage() {
       .getMyChannel(accessToken)
       .then((ch) => {
         setChannelId(ch.id);
+        setChannel(ch);
         return layoutsApi.getMine(accessToken);
       })
       .then((mine) => {
@@ -134,6 +145,10 @@ export default function LayoutBuilderPage() {
     return () => window.removeEventListener('beforeunload', handler);
   }, []);
 
+  useEffect(() => {
+    if (window.innerWidth < 768) setPreviewDevice('mobile');
+  }, []);
+
   const selected = useMemo(
     () => widgets.find((w) => w.id === selectedId) ?? null,
     [widgets, selectedId],
@@ -146,7 +161,10 @@ export default function LayoutBuilderPage() {
 
   // react-grid-layout v2 measures the container with a ref + hook instead
   // of the v1 WidthProvider HOC.
-  const { containerRef, width } = useContainerWidth();
+  // Pre-measure width stays under the smallest laptop canvas column so the
+  // first paint can never overflow onto the panels; the observer corrects
+  // it immediately after mount.
+  const { containerRef, width } = useContainerWidth({ initialWidth: 480 });
 
   const onDragStop = useCallback(
     (layout: Layout) => {
@@ -362,10 +380,17 @@ export default function LayoutBuilderPage() {
         </p>
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_1fr_280px]">
+      {/* Pane sizing: the app shell reserves 240px for the sidebar, so the
+          three-pane layout only fits at xl. At lg the settings panel drops
+          below the canvas; minmax(0,1fr) stops the drag grid from blowing
+          the canvas column wider than its track (which painted it over the
+          settings panel on laptops). */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[200px_minmax(0,1fr)] xl:grid-cols-[200px_minmax(0,1fr)_264px]">
+        {/* Order: canvas first on small screens (library and settings follow);
+            the three-pane layout is restored at lg. */}
         {/* Widget library */}
         {!previewMode && (
-          <aside className="rounded-xl border border-outline-variant/30 bg-surface-container p-3">
+          <aside className="order-2 rounded-xl border border-outline-variant/30 bg-surface-container p-3 lg:col-start-1 lg:order-1">
             <h2 className="mb-2 px-1 text-label-sm uppercase tracking-wide text-on-surface-variant">Widgets</h2>
             <ul className="space-y-1">
               {WIDGET_TYPES.map((type) => {
@@ -390,27 +415,67 @@ export default function LayoutBuilderPage() {
         {/* Canvas / preview */}        <main
           ref={containerRef as React.RefObject<HTMLElement>}
           className={cn(
-            'rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-3',
+            // isolate: dragged grid items get high z-indexes — confining them
+            // to this stacking context keeps them under the side panels.
+            'order-1 isolate rounded-xl border border-outline-variant/30 bg-surface-container-lowest p-3 lg:order-2 lg:col-start-2',
             previewMode && 'pointer-events-none select-none opacity-95',
           )
           }
         >
           {previewMode && (
-            <p className="mb-2 rounded-md bg-primary-container/40 px-2 py-1 text-center text-label-sm text-on-primary-container">
-              Preview — exactly how the public page will render after you publish
-            </p>
+            <div className="mb-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-md bg-primary-container/40 px-3 py-2">
+              <p className="text-label-sm text-on-primary-container">
+                Preview — exactly how the public page will render after you publish
+              </p>
+              <div className="flex overflow-hidden rounded-md border border-outline-variant/30" role="group" aria-label="Preview device">
+                <button
+                  type="button"
+                  onClick={() => setPreviewDevice('desktop')}
+                  aria-pressed={previewDevice === 'desktop'}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 px-3 py-1.5 text-label-sm transition-colors',
+                    previewDevice === 'desktop'
+                      ? 'bg-primary text-on-primary'
+                      : 'text-on-surface-variant hover:bg-surface-variant',
+                  )}
+                >
+                  <Monitor className="h-3.5 w-3.5" />
+                  Desktop
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewDevice('mobile')}
+                  aria-pressed={previewDevice === 'mobile'}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 px-3 py-1.5 text-label-sm transition-colors',
+                    previewDevice === 'mobile'
+                      ? 'bg-primary text-on-primary'
+                      : 'text-on-surface-variant hover:bg-surface-variant',
+                  )}
+                >
+                  <Smartphone className="h-3.5 w-3.5" />
+                  Mobile
+                </button>
+              </div>
+            </div>
           )}
-          <ResponsiveGridLayout
-            className="layout"
-            width={Math.max(width, 320)}
-            layouts={{ desktop: rglLayout }}
-            breakpoint="desktop"
-            cols={{ desktop: 12 }}
-            breakpoints={{ desktop: 0 }}
-            rowHeight={40}
-            margin={[12, 12]}
-            dragConfig={{ enabled: !previewMode, handle: '.widget-drag-handle' }}
-            resizeConfig={{ enabled: !previewMode }}
+          {!previewMode ? (
+            <>
+              {/* Desktop/tablet editor: the real drag-and-drop canvas. On
+                  phones a 12-column drag surface is unusable (~25px per
+                  column), so it is replaced by the stack editor below. */}
+              <div className="hidden overflow-hidden md:block">
+                <ResponsiveGridLayout
+                  className="layout"
+                  width={Math.max(width, 320)}
+                  layouts={{ desktop: rglLayout }}
+                  breakpoint="desktop"
+                  cols={{ desktop: 12 }}
+                  breakpoints={{ desktop: 0 }}
+                  rowHeight={40}
+                  margin={[12, 12]}
+                  dragConfig={{ enabled: true, handle: '.widget-drag-handle' }}
+                  resizeConfig={{ enabled: true }}
             compactor={noCompactor}
             onDragStop={onDragStop}
             onResizeStop={onDragStop}
@@ -431,19 +496,17 @@ export default function LayoutBuilderPage() {
                       <Icon className="h-3.5 w-3.5" />
                       {WIDGET_LABELS[w.type]}
                     </span>
-                    {!previewMode && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeWidget(w.id);
-                        }}
-                        aria-label={`Delete ${WIDGET_LABELS[w.type]} widget`}
-                        className="rounded p-0.5 text-on-surface-variant/60 opacity-0 transition-opacity hover:text-error group-hover:opacity-100"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeWidget(w.id);
+                      }}
+                      aria-label={`Delete ${WIDGET_LABELS[w.type]} widget`}
+                      className="rounded p-0.5 text-on-surface-variant/60 transition-opacity hover:text-error md:opacity-0 md:group-hover:opacity-100"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                   <div className="flex flex-1 items-center justify-center overflow-hidden p-2 text-center">
                     <p className="truncate text-body-sm text-on-surface-variant">
@@ -453,18 +516,75 @@ export default function LayoutBuilderPage() {
                 </div>
               );
             })}
-          </ResponsiveGridLayout>
+                </ResponsiveGridLayout>
+              </div>
+              {/* Mobile editor: the same widgets as a vertical stack — the
+                  exact order phone visitors see (shared priority list with
+                  the public renderer). Add/select/remove work here; precise
+                  placement is a desktop task. */}
+              <div className="space-y-3 md:hidden">
+                <p className="rounded-lg bg-surface-container px-3 py-2 text-body-sm text-on-surface-variant">
+                  You&apos;re on a small screen — drag-and-drop needs a tablet
+                  or desktop. You can still add, select and remove widgets;
+                  the stack below shows the order phone visitors will see.
+                </p>
+                {mobileSorted(widgets).map((w) => {
+                  const Icon = WIDGET_ICONS[w.type];
+                  return (
+                    <div
+                      key={w.id}
+                      onClick={() => setSelectedId(w.id)}
+                      className={cn(
+                        'overflow-hidden rounded-xl border bg-surface-container',
+                        selectedId === w.id ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant/40',
+                      )}
+                    >
+                      <div className="flex items-center justify-between border-b border-outline-variant/30 bg-surface-container-high px-2 py-1.5">
+                        <span className="flex items-center gap-1.5 text-label-sm text-on-surface-variant">
+                          <Icon className="h-3.5 w-3.5" />
+                          {WIDGET_LABELS[w.type]}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeWidget(w.id);
+                          }}
+                          aria-label={`Delete ${WIDGET_LABELS[w.type]} widget`}
+                          className="rounded p-0.5 text-on-surface-variant/60 transition-colors hover:text-error"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div className="pointer-events-none max-h-72 overflow-hidden p-2">
+                        <WidgetRenderer widget={w} channel={channel} context="builder" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            // Preview uses the public render path (LayoutCanvas) with the
+            // chosen device variant — never the editor grid.
+            <LayoutCanvas
+              layout={{ version: 1, grid: { columns: 12, rowHeight: 40 }, widgets }}
+              channel={channel}
+              context="preview"
+              variant={previewDevice}
+            />
+          )}
           {widgets.length === 0 && (
             <div className="flex flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-outline-variant py-2xl text-center">
               <p className="text-body-md text-on-surface-variant">Empty canvas</p>
-              <p className="text-body-sm text-on-surface-variant/70">Add widgets from the library on the left.</p>
+              <p className="text-body-sm text-on-surface-variant/70">Add widgets from the widget library.</p>
             </div>
           )}
         </main>
 
         {/* Settings panel */}
         {!previewMode && (
-          <aside className="rounded-xl border border-outline-variant/30 bg-surface-container p-3">
+          <aside className="relative z-10 order-3 rounded-xl border border-outline-variant/30 bg-surface-container p-3 lg:order-3 lg:col-span-2 lg:col-start-1 xl:col-span-1 xl:col-start-3">
             <h2 className="mb-2 flex items-center gap-1.5 px-1 text-label-sm uppercase tracking-wide text-on-surface-variant">
               <Settings2 className="h-3.5 w-3.5" />
               Settings
