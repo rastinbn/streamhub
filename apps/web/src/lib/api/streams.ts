@@ -25,6 +25,10 @@ export const streamsApi = {
   listLive: (query: Omit<StreamListQuery, 'status'> = {}) =>
     request<PaginatedResult<StreamPublic>>(`/streams/live${buildQuery(query)}`),
 
+  /** Bounded recent-broadcasts list for a channel's public page (max 10). */
+  listByChannel: (channelId: string) =>
+    request<PaginatedResult<StreamPublic>>(`/streams/channel/${encodeURIComponent(channelId)}`),
+
   getById: (id: string) => request<StreamPublic>(`/streams/${id}`),
 
   /** The caller's own streams (dashboard scope) — requires auth. */

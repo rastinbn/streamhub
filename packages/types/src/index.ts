@@ -9,3 +9,4 @@ export * from './analytics';
 export * from './admin';
 export * from './vod';
 export * from './moderation';
+export * from './layout';

@@ -1,14 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, useRouter, notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { BadgeCheck, Heart, Bell, Radio, VideoOff, Share2 } from 'lucide-react';
+import { BadgeCheck, Heart, Bell, Radio, VideoOff, Share2, PenSquare } from 'lucide-react';
 import { useChannelBySlug } from '@/hooks/useChannelBySlug';
+import { useChannelLayout } from '@/hooks/useChannelLayout';
 import { useAuth } from '@/lib/auth-context';
 import { formatCompact } from '@/lib/format';
+import { streamHlsUrl } from '@/lib/hls';
 import { cn } from '@/lib/utils';
+import type { WatchStream } from '@/components/watch/types';
+import LayoutCanvas from '@/components/stream-page/LayoutCanvas';
+import { cloneDefaultLayoutDocument } from '@/lib/default-layout';
 import {
   MISSING_NAME,
   PLACEHOLDER_ALT,
@@ -22,11 +27,45 @@ const TABS: Tab[] = ['Home', 'About', 'Videos', 'Clips'];
 export default function ChannelPage() {
   const { slug } = useParams<{ slug: string }>();
   const router = useRouter();
-  const { accessToken } = useAuth();
+  const { accessToken, user } = useAuth();
   const { channel, isLive, liveStream, isFollowing, isLoading, isError, error, isNotFound, setFollowed } =
     useChannelBySlug(slug);
+  const { layout } = useChannelLayout(slug, !isLoading && !isError);
   const [notifyOn, setNotifyOn] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('Home');
+
+  // NOTE: all hooks must run before the early returns below (rules-of-hooks).
+
+  // The layout document to render: the channel's published layout, or the
+  // safe default when there is none.
+  const layoutDoc = useMemo(
+    () => layout?.layout ?? cloneDefaultLayoutDocument(),
+    [layout],
+  );
+
+  // Live view-model for the STREAM_PLAYER/CHAT widgets (same shape the
+  // watch page builds; built only when this channel is live).
+  const watchStream = useMemo(() => {
+    if (!isLive || !liveStream || !channel) return null;
+    return {
+      title: liveStream.title ?? 'Untitled stream',
+      viewerCount: formatCompact(liveStream.viewerCount),
+      duration: '',
+      thumbnailUrl: liveStream.thumbnail ?? channel.banner ?? PLACEHOLDER_THUMBNAIL,
+      thumbnailAlt: PLACEHOLDER_ALT,
+      hlsUrl: streamHlsUrl(liveStream.playbackPath),
+      isLive: true,
+      streamer: {
+        name: channel.name,
+        avatarUrl: channel.avatar ?? PLACEHOLDER_AVATAR,
+        avatarAlt: PLACEHOLDER_ALT,
+        followers: formatCompact(channel.followersCount),
+      },
+      category: liveStream.category ?? channel.category ?? MISSING_NAME,
+      tags: [] as string[],
+      description: liveStream.description ?? channel.description ?? '',
+    } as WatchStream;
+  }, [isLive, liveStream, channel]);
 
   async function toggleFollow() {
     if (!channel || !accessToken) {
@@ -60,6 +99,7 @@ export default function ChannelPage() {
   const avatarUrl = channel.avatar ?? PLACEHOLDER_AVATAR;
   const bio = channel.description ?? MISSING_NAME;
   const followers = formatCompact(channel.followersCount);
+  const isOwner = Boolean(user && channel && user.id === channel.ownerId);
 
   return (
     <div className="relative bg-surface-container-lowest">
@@ -109,6 +149,16 @@ export default function ChannelPage() {
 
 
         <div className="mt-sm flex w-full items-center gap-sm sm:mt-0 sm:w-auto sm:pb-2">
+          {isOwner && (
+            <Link
+              href="/dashboard/channel/layout"
+              className="flex h-10 items-center gap-xs rounded-DEFAULT border border-outline-variant/30 bg-surface-container px-sm text-label-md text-on-surface transition-colors hover:border-primary hover:text-primary"
+              aria-label="Customize this page"
+            >
+              <PenSquare className="h-4 w-4" />
+              <span className="hidden sm:inline">Customize</span>
+            </Link>
+          )}
           <button
             type="button"
             onClick={() => void toggleFollow()}
@@ -185,82 +235,14 @@ className={cn(
             </p>
           </div>
         ) : (
-          <>
-            {!isLive && (
-              <div className="group relative mb-xl flex flex-col items-center overflow-hidden rounded-xl border border-outline-variant/30 bg-surface-container p-lg text-center sm:p-xl">
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
-                <div className="relative mb-md flex h-16 w-16 items-center justify-center rounded-full border border-outline-variant/50 bg-surface-variant sm:h-20 sm:w-20">
-                  <VideoOff className="h-8 w-8 text-outline sm:h-10 sm:w-10" />
-                </div>
-                <h2 className="mb-xs font-headline-md text-headline-md text-on-surface">
-                  {channel.name} is currently offline
-                </h2>
-                <p className="mx-auto mb-lg max-w-md font-body-md text-body-md text-on-surface-variant">
-                  Follow to get notified when {channel.name} goes live with new high-performance
-                  system design sessions!
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setNotifyOn(true)}
-                  className="flex items-center gap-sm rounded-DEFAULT bg-primary-container px-lg py-sm text-label-md font-label-md text-on-primary-container transition-colors duration-150 hover:bg-primary-fixed active:scale-95"
-                >
-                  <Bell className="h-[18px] w-[18px]" fill={notifyOn ? 'currentColor' : 'none'} />
-                  {notifyOn ? 'Notifications on' : 'Turn on Notifications'}
-                </button>
-              </div>
-            )}
-
-            {isLive && liveStream && (
-              <Link
-                href={`/watch/${slug}/${liveStream.id}`}
-                className="group relative mb-xl flex flex-col overflow-hidden rounded-xl border border-live/30 bg-surface-container hover:border-live transition-colors"
-              >
-                <div className="relative aspect-video w-full">
-                  <Image
-                    src={liveStream.thumbnail ?? channel.banner ?? PLACEHOLDER_THUMBNAIL}
-                    alt={liveStream.title ?? 'Live stream'}
-                    fill
-                    className="object-cover transition-transform duration-300 group-hover:scale-105"
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                  <div className="absolute top-3 left-3 z-10">
-                    <span className="bg-live text-on-live font-label-sm text-label-sm px-2 py-0.5 rounded font-bold tracking-wider shadow-sm">
-                      Live
-                    </span>
-                  </div>
-                  <div className="absolute bottom-3 left-3 z-10 flex items-center gap-sm">
-                    {liveStream.viewerCount > 0 && (
-                      <span className="bg-black/60 backdrop-blur-sm text-white font-label-sm text-label-sm px-2 py-0.5 rounded flex items-center gap-1">
-                        <Radio className="w-3 h-3" />
-                        {formatCompact(liveStream.viewerCount)} viewers
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="p-md">
-                  <h3 className="font-body-md font-body-md font-semibold text-on-surface group-hover:text-primary transition-colors">
-                    {liveStream.title ?? 'Untitled stream'}
-                  </h3>
-                  <p className="mt-1 text-body-sm font-body-sm text-on-surface-variant">
-                    {liveStream.category ?? channel.category ?? 'Just Chatting'}
-                  </p>
-                </div>
-              </Link>
-            )}
-
-            <div>
-              <h3 className="mb-md font-headline-md text-headline-md text-on-surface">
-                Recent Broadcasts
-              </h3>
-              <div className="flex flex-col items-center justify-center gap-sm rounded-xl border border-dashed border-outline-variant py-2xl text-center">
-                <VideoOff className="h-8 w-8 text-outline" />
-                <p className="font-body-md font-body-md text-on-surface-variant">
-                  No broadcasts yet — VODs aren&#39;t available yet.
-                </p>
-              </div>
-            </div>
-          </>
+          <LayoutCanvas
+            layout={layoutDoc}
+            channel={channel}
+            context="public"
+            stream={watchStream}
+            liveStreamId={isLive && liveStream ? liveStream.id : null}
+            viewerCount={watchStream?.viewerCount ?? formatCompact(liveStream?.viewerCount ?? 0)}
+          />
         )}
       </div>
     </div>

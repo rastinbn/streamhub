@@ -14,6 +14,7 @@ export type { ContentListQuery } from './content';
 export { mediaApi, THUMBNAIL_MAX_BYTES } from './media';
 export type { ThumbnailFormat, ThumbnailUploadResult } from './media';
 export { analyticsApi } from './analytics';
+export { layoutsApi } from './layouts';
 export { reportsApi } from './reports';
 export type { ReportListQuery } from './reports';
 export { adminApi } from './admin';

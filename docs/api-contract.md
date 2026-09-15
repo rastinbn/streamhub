@@ -229,6 +229,22 @@ Public, no auth required. Paginated (see below). `200` with `{ items: FollowerEn
 
 ---
 
+## Stream page layout — `/channels/:slug/layout` + `/users/me/channel/layout` *(Phase 11)*
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/channels/:slug/layout` | — | Published layout document for a channel's public page (default layout when none) |
+| GET | `/users/me/channel/layout` | Bearer | Caller's draft + published state (`MyChannelLayout`) |
+| PUT | `/users/me/channel/layout` | Bearer, owner-only | Save the draft (body `{ layout }`); the public page is NOT changed |
+| POST | `/users/me/channel/layout/publish` | Bearer, owner-only | Copy draft → published, bump `version`, invalidate cache |
+| POST | `/users/me/channel/layout/reset` | Bearer, owner-only | Draft := default layout (published page untouched until published) |
+
+See **docs/stream-page-layout.md** for the JSON schema, validation rules,
+widget types, cache behavior, and security model.
+
+Errors: `400` invalid layout (message names the exact violation), `401`,
+`404` (unknown slug / caller has no channel).
+
 ## Categories — `/categories` *(Phase 7)*
 
 An admin-managed catalog of browse/stream categories (e.g. "Gaming", "Just Chatting"). Deliberately **not** a hard foreign key from `Channel.category` / `Stream.category` — both remain freeform strings carried over from earlier phases. See `docs/domain-model.md` §5 for why.

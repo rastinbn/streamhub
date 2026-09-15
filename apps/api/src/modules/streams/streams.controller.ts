@@ -45,6 +45,16 @@ export class StreamsController {
     return { success: true, data: await this.streams.listMine(req.user.sub, query) };
   }
 
+  /**
+   * `GET /streams/channel/:channelId` — recent broadcasts for a channel's
+   * public page (RECENT_STREAMS layout widget). Registered BEFORE `:id`
+   * (static-before-param convention); bounded to 10 rows in the service.
+   */
+  @Get('channel/:channelId')
+  async listByChannel(@Param('channelId') channelId: string) {
+    return { success: true, data: await this.streams.listByChannel(channelId) };
+  }
+
   // --- MediaMTX lifecycle callbacks ------------------------------------
   //
   // Registered ahead of the `:id` routes below. Both `webhooks/mediamtx/*`

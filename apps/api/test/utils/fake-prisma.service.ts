@@ -227,6 +227,18 @@ export interface FakeViewerMetricRow {
   sampledAt: Date;
 }
 
+/** Minimal shape of the `stream_page_layouts` rows the layouts module operates on. */
+export interface FakeStreamPageLayoutRow {
+  id: string;
+  channelId: string;
+  version: number;
+  layout: unknown;
+  draftLayout: unknown;
+  hasPublished: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 type ListWhere = Record<string, unknown>;
 
 /** Compares a cell against a comparator condition ({ gte | gt | lte | lt }). */
@@ -302,6 +314,7 @@ export class FakePrismaService {
   private vodRows: FakeVodRow[] = [];
   private reportRows: FakeReportRow[] = [];
   private auditLogRows: FakeAuditLogRow[] = [];
+  private streamPageLayoutRows: FakeStreamPageLayoutRow[] = [];
 
   /** Test helper: reset state between test cases. */
   reset(): void {
@@ -316,6 +329,7 @@ export class FakePrismaService {
     this.vodRows = [];
     this.reportRows = [];
     this.auditLogRows = [];
+    this.streamPageLayoutRows = [];
   }
 
   /**
@@ -1197,6 +1211,54 @@ export class FakePrismaService {
     const user = this.rows.find((r) => r.id === reporterId);
     return user ? { id: user.id, username: user.username } : null;
   }
+
+  /** Customizable Stream Page — one layout row per channel (`channelId` unique). */
+  streamPageLayout = {
+    findUnique: async ({ where }: { where: { channelId?: string; id?: string } }) => {
+      if (where.channelId) {
+        return this.streamPageLayoutRows.find((r) => r.channelId === where.channelId) ?? null;
+      }
+      if (where.id) return this.streamPageLayoutRows.find((r) => r.id === where.id) ?? null;
+      return null;
+    },
+
+    create: async ({
+      data,
+    }: {
+      data: { channelId: string; layout?: unknown; draftLayout?: unknown; hasPublished?: boolean; version?: number };
+    }) => {
+      const now = new Date();
+      const row: FakeStreamPageLayoutRow = {
+        id: randomUUID(),
+        channelId: data.channelId,
+        version: data.version ?? 1,
+        layout: data.layout ?? null,
+        draftLayout: data.draftLayout ?? null,
+        hasPublished: data.hasPublished ?? false,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.streamPageLayoutRows.push(row);
+      return row;
+    },
+
+    update: async ({
+      where,
+      data,
+    }: {
+      where: { channelId: string };
+      data: { layout?: unknown; draftLayout?: unknown; hasPublished?: boolean; version?: number };
+    }) => {
+      const row = this.streamPageLayoutRows.find((r) => r.channelId === where.channelId);
+      if (!row) throw new Error('Record to update not found.');
+      if (data.layout !== undefined) row.layout = data.layout;
+      if (data.draftLayout !== undefined) row.draftLayout = data.draftLayout;
+      if (data.hasPublished !== undefined) row.hasPublished = data.hasPublished;
+      if (data.version !== undefined) row.version = data.version;
+      row.updatedAt = new Date();
+      return row;
+    },
+  };
 
   /** Phase 10 — append-only audit-log model. No update/delete, by design. */
   auditLog = {

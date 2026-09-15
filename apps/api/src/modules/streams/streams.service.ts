@@ -107,6 +107,26 @@ export class StreamsService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * `GET /streams/channel/:channelId` — bounded recent-broadcasts list for
+   * a channel's public page (RECENT_STREAMS layout widget). Hard-capped at
+   * 10 rows so the widget can never trigger an unbounded query. Includes
+   * the channel join for self-describing cards.
+   */
+  async listByChannel(channelId: string) {
+    const limit = 10;
+    const where: Record<string, unknown> = { channelId };
+    const items = await this.prisma.stream.findMany({
+      where,
+      include: { channel: { select: { slug: true, name: true, avatar: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    const publicStreams = items.map((s: unknown) => toPublicStream(s as { streamKeyHash: unknown }));
+    await this.applyLiveViewerCounts(publicStreams);
+    return { items: publicStreams, total: publicStreams.length, page: 1, limit };
+  }
+
+  /**
    * `GET /streams/mine` — the caller's own streams, newest first (dashboard
    * broadcast-tools scope). Includes the channel join so the client can
    * build watch links, and live viewer counts the same way the public list

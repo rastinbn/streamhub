@@ -16,6 +16,7 @@ import {
   Radio,
   BarChart3,
   Clapperboard,
+  LayoutTemplate,
 } from 'lucide-react';
 import FollowedChannels from '@/components/channel/FollowedChannels';
 import { useAuth } from '@/lib/auth-context';
@@ -97,6 +98,7 @@ export default function Sidebar() {
             { href: '/create', label: 'Go live', icon: Radio },
             { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
             { href: '/dashboard/content', label: 'Content', icon: Clapperboard },
+            { href: '/dashboard/channel/layout', label: 'Page builder', icon: LayoutTemplate },
             { href: '/dashboard/settings', label: 'Creator settings', icon: Settings },
           ])}
         </div>

@@ -21,6 +21,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { ContentModule } from './modules/content/content.module';
+import { LayoutsModule } from './modules/layouts/layouts.module';
 import { StorageModule } from './storage/storage.module';
 
 @Module({
@@ -58,6 +59,7 @@ import { StorageModule } from './storage/storage.module';
     AnalyticsModule,
     AdminModule,
     ContentModule,
+    LayoutsModule,
   ],
   providers: [
     {

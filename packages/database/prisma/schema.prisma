@@ -87,10 +87,31 @@ model Channel {
   streams      Stream[]
   followers    Follow[]      @relation("FollowedChannel")
   chatMessages ChatMessage[]
+  layout       StreamPageLayout?
 
   @@index([category])
   @@index([name])
   @@map("channels")
+}
+
+// Customizable Stream Page — one row per channel (unique `channelId`)
+// holding BOTH the published document (`layout`) and the working draft
+// (`draftLayout`), so saving a draft never touches what the public page
+// serves. Both are versioned JSON documents validated by the layouts module
+// before persistence (see docs/stream-page-layout.md). `layout` is null
+// until the first publish — the public page falls back to the default.
+model StreamPageLayout {
+  id          String   @id @default(cuid())
+  channelId   String   @unique
+  channel     Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  version     Int      @default(1)
+  layout      Json?
+  draftLayout Json?
+  hasPublished Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("stream_page_layouts")
 }
 
 model Stream {
