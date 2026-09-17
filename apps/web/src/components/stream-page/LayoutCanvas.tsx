@@ -37,6 +37,7 @@ export default function LayoutCanvas({
   stream,
   liveStreamId,
   viewerCount,
+  channelId,
   variant = 'auto',
 }: {
   layout: StreamPageLayoutDocument;
@@ -45,6 +46,8 @@ export default function LayoutCanvas({
   stream?: WatchStream | null;
   liveStreamId?: string | null;
   viewerCount?: string;
+  /** The channel id — passed to widgets that need it (CHAT's meme board). */
+  channelId?: string | null;
   /** Which responsive variant to render. 'auto' picks by CSS breakpoint
    * (default, what the public page uses); 'desktop'/'mobile' force one
    * variant — the builder's preview device toggle uses this. */
@@ -83,6 +86,7 @@ export default function LayoutCanvas({
               stream={stream}
               liveStreamId={liveStreamId}
               viewerCount={viewerCount}
+              channelId={channelId}
             />
           </div>
         ))}
@@ -92,7 +96,7 @@ export default function LayoutCanvas({
       <div className={cnStack(variant)}>
         {mobileSorted(widgets).map((widget) => (
           <div key={widget.id} className="min-w-0" style={{ minHeight: Math.max(widget.h * rowHeight, 96) }}>
-            <WidgetRenderer widget={widget} channel={channel} context={context === 'preview' ? 'preview' : 'public'} stream={stream} liveStreamId={liveStreamId} viewerCount={viewerCount} />
+            <WidgetRenderer widget={widget} channel={channel} context={context === 'preview' ? 'preview' : 'public'} stream={stream} liveStreamId={liveStreamId} viewerCount={viewerCount} channelId={channelId} />
           </div>
         ))}
       </div>

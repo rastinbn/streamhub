@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { verify } from 'jsonwebtoken';
+import { getSecret } from '../../common/config/secrets';
 import { AnalyticsService } from './analytics.service';
 import { ViewerHeartbeatDto } from './dto/viewer-heartbeat.dto';
 import { OverviewQueryDto } from './dto/overview-query.dto';
@@ -18,12 +20,32 @@ export class AnalyticsController {
    * that isn't live is accepted-but-ignored (`accepted: false`) rather than
    * an error, so a player whose broadcast ended simply stops counting
    * without spewing 4xx traffic.
+   *
+   * Optional auth: when a valid Bearer token is present, the caller is also
+   * enrolled in watch-time points (Phase 12) via a shadow presence key.
+   * An invalid/expired token is silently ignored — the heartbeat itself
+   * never fails on auth.
    */
   @Post('streams/:streamId/heartbeat')
-  async heartbeat(@Param('streamId') streamId: string, @Body() dto: ViewerHeartbeatDto) {
+  async heartbeat(
+    @Param('streamId') streamId: string,
+    @Body() dto: ViewerHeartbeatDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    let userId: string | undefined;
+    if (authorization?.startsWith('Bearer ')) {
+      try {
+        const payload = verify(authorization.slice('Bearer '.length), getSecret('JWT_SECRET', 'dev-access-secret')) as {
+          sub: string;
+        };
+        userId = payload.sub;
+      } catch {
+        // Invalid token — treat as anonymous.
+      }
+    }
     return {
       success: true,
-      data: await this.analytics.recordHeartbeat(streamId, dto.viewerId),
+      data: await this.analytics.recordHeartbeat(streamId, dto.viewerId, userId),
     };
   }
 

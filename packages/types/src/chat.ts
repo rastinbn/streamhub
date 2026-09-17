@@ -3,6 +3,8 @@
  * client (consumer). Keep this in sync with docs/websocket.md.
  */
 
+import type { MemePlayPayload } from './points';
+
 /** A chat message as broadcast to clients. Never trust a client-supplied
  * version of this shape — the server always derives `userId`/`username`/
  * `role` from the authenticated socket, never from client input. */
@@ -69,6 +71,8 @@ export interface ChatClientEvents {
   'chat:timeout': { streamId: string; targetUserId: string; seconds: number };
   'chat:ban': { streamId: string; targetUserId: string };
   'chat:unban': { streamId: string; targetUserId: string };
+  /** Phase 12 — play a meme sound (points are debited server-side). */
+  'chat:play-meme': { streamId: string; soundId: string };
 }
 
 /** Server -> client events. */
@@ -79,4 +83,8 @@ export interface ChatServerEvents {
   'chat:history': ChatHistoryPayload;
   'viewer-count': ViewerCountPayload;
   'follower-count': FollowerCountPayload;
+  /** Phase 12 — a meme sound was played; every room member should play it. */
+  'chat:meme': MemePlayPayload;
+  /** Phase 12 — confirmation that chat points were awarded to this socket's user. */
+  'points:awarded': { amount: number; reason: 'CHAT_MESSAGE' };
 }

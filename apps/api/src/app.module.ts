@@ -22,6 +22,8 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { ContentModule } from './modules/content/content.module';
 import { LayoutsModule } from './modules/layouts/layouts.module';
+import { PointsModule } from './modules/points/points.module';
+import { MemesModule } from './modules/memes/memes.module';
 import { StorageModule } from './storage/storage.module';
 
 @Module({
@@ -60,6 +62,8 @@ import { StorageModule } from './storage/storage.module';
     AdminModule,
     ContentModule,
     LayoutsModule,
+    PointsModule,
+    MemesModule,
   ],
   providers: [
     {

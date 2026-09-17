@@ -48,6 +48,8 @@ export interface WidgetRendererProps {
   liveStreamId?: string | null;
   /** Public context only: viewer count label shown in the chat header. */
   viewerCount?: string;
+  /** Public context only: the channel id — the CHAT widget's meme board lists its sounds. */
+  channelId?: string | null;
 }
 
 const WIDGET_LABELS: Record<WidgetType, string> = {
@@ -66,7 +68,15 @@ export function widgetLabel(type: WidgetType): string {
   return WIDGET_LABELS[type] ?? type;
 }
 
-export function WidgetRenderer({ widget, channel, context, stream, liveStreamId, viewerCount }: WidgetRendererProps) {
+export function WidgetRenderer({
+  widget,
+  channel,
+  context,
+  stream,
+  liveStreamId,
+  viewerCount,
+  channelId,
+}: WidgetRendererProps) {
   switch (widget.type) {
     case 'STREAM_PLAYER': {
       if (context === 'public' && stream) {
@@ -87,7 +97,7 @@ export function WidgetRenderer({ widget, channel, context, stream, liveStreamId,
       if (context === 'public' && liveStreamId) {
         // Real WebSocket chat (useWatchChat inside ChatPanel) — the exact
         // same hook the watch page uses; only the container differs.
-        return <ChatPanel streamId={liveStreamId} viewerCount={viewerCount ?? '0'} />;
+        return <ChatPanel streamId={liveStreamId} viewerCount={viewerCount ?? '0'} channelId={channelId ?? channel?.id ?? null} />;
       }
       return (
         <div className="flex h-full items-center justify-center rounded-xl border border-outline-variant/30 bg-surface-container-low">

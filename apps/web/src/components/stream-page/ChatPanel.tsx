@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, LogIn, MessageSquare, Send, Users, X } from 'lucide-react';
+import { Coins, Loader2, LogIn, MessageSquare, Send, Users, Volume2, X } from 'lucide-react';
 import ChatMessage from '@/components/watch/ChatMessage';
 import { useWatchChat } from '@/hooks/useWatchChat';
 import type { ChatMessage as ChatItem } from '@/components/watch/types';
-import type { ChatConnectionState } from '@/hooks/useWatchChat';
+import MemeBoard, { MemeAudioPlayer } from '@/components/points/MemeBoard';
+import { pointsApi } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 
 const MAX_LENGTH = 200;
 const SEND_COOLDOWN_MS = 400;
@@ -16,13 +18,60 @@ const SEND_COOLDOWN_MS = 400;
  * watch page uses (`useWatchChat`) and the same message renderer
  * (`ChatMessage`), wrapped in a panel that fits any widget box. This is a
  * container, NOT a second chat system.
+ *
+ * Phase 12 additions: the meme-sound board (`chat:play-meme` → `chat:meme`
+ * playback for the whole room) and the +points toast shown when chat
+ * points are awarded to the local viewer.
  */
-export default function ChatPanel({ streamId, viewerCount }: { streamId: string | null; viewerCount: string }) {
+export default function ChatPanel({
+  streamId,
+  viewerCount,
+  channelId,
+}: {
+  streamId: string | null;
+  viewerCount: string;
+  /** The owning channel — the meme board lists its active sounds. */
+  channelId?: string | null;
+}) {
   const chat = useWatchChat(streamId ?? undefined);
+  const { user } = useAuth();
   const [draft, setDraft] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastSendAt = useRef(0);
   const isConnected = chat.status === 'connected';
+  const [memeBoardOpen, setMemeBoardOpen] = useState(false);
+  const [balance, setBalance] = useState<number | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  // Fetch the local viewer's balance for affordability badges; refresh on
+  // each points award toast (their balance just changed).
+  useEffect(() => {
+    if (!user || !chat.accessToken) {
+      setBalance(null);
+      return;
+    }
+    let cancelled = false;
+    pointsApi
+      .me(chat.accessToken, 1, 1)
+      .then((res) => {
+        if (!cancelled) setBalance(res.wallet.balance);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [user, chat.accessToken, chat.pointsAwarded]);
+
+  // Points toast auto-dismiss.
+  useEffect(() => {
+    if (chat.pointsAwarded === null) return;
+    setToast(`+${chat.pointsAwarded} point${chat.pointsAwarded === 1 ? '' : 's'}`);
+    const t = window.setTimeout(() => {
+      setToast(null);
+      chat.clearPointsAwarded();
+    }, 2500);
+    return () => window.clearTimeout(t);
+  }, [chat.pointsAwarded, chat]);
 
   useEffect(() => {
     const node = scrollRef.current;
@@ -86,7 +135,15 @@ export default function ChatPanel({ streamId, viewerCount }: { streamId: string 
         </div>
       )}
 
-      <div className="flex flex-col gap-2 border-t border-outline-variant/30 p-3">
+      <div className="relative flex flex-col gap-2 border-t border-outline-variant/30 p-3">
+        {/* Phase 12 — meme sounds popover (anchored above the input row). */}
+        <MemeBoard
+          channelId={channelId ?? null}
+          balance={balance}
+          onPlay={(soundId) => chat.playMeme(soundId)}
+          open={memeBoardOpen}
+          onClose={() => setMemeBoardOpen(false)}
+        />
         {chat.errorMessage && (
           <div className="flex items-start justify-between gap-2 rounded-md border border-error/30 bg-error/10 px-2 py-1.5">
             <p role="alert" className="text-[12px] leading-snug text-error">
@@ -100,6 +157,12 @@ export default function ChatPanel({ streamId, viewerCount }: { streamId: string 
             >
               <X className="h-3.5 w-3.5" />
             </button>
+          </div>
+        )}
+        {toast && (
+          <div className="pointer-events-none absolute right-3 top-3 flex items-center gap-1 rounded-full bg-tertiary-container px-2.5 py-1 text-label-sm font-label-sm font-semibold text-on-tertiary-container shadow">
+            <Coins className="h-3.5 w-3.5" aria-hidden />
+            {toast}
           </div>
         )}
         <textarea
@@ -117,6 +180,17 @@ export default function ChatPanel({ streamId, viewerCount }: { streamId: string 
           rows={2}
         />
         <div className="flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={() => setMemeBoardOpen((v) => !v)}
+            disabled={!isConnected}
+            aria-label="Play a meme sound"
+            aria-expanded={memeBoardOpen}
+            title="Meme sounds"
+            className="rounded-md p-1.5 text-on-surface-variant transition-colors hover:bg-surface-variant/60 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Volume2 className="h-5 w-5" />
+          </button>
           <span className="font-label-sm text-label-sm text-on-surface-variant/50">
             {draft.length}/{MAX_LENGTH}
           </span>
@@ -131,6 +205,8 @@ export default function ChatPanel({ streamId, viewerCount }: { streamId: string 
           </button>
         </div>
       </div>
+      {/* Phase 12 — the room-wide playback element (renders nothing). */}
+      <MemeAudioPlayer event={chat.memeEvent} onFinished={chat.clearMemeEvent} />
     </div>
   );
 }

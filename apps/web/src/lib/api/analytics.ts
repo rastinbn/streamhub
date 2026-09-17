@@ -19,10 +19,13 @@ export interface AnalyticsListResult {
 
 export const analyticsApi = {
   /** Public viewer presence ping. Returns `{ accepted: false }` (201, not an
-   * error) when the stream exists but isn't LIVE. Unknown stream + 404. */
-  heartbeat: (streamId: string, viewerId: string) =>
+   * error) when the stream exists but isn't LIVE. Unknown stream + 404.
+   * `accessToken` is optional: when present, the viewer is enrolled in
+   * watch-time points (Phase 12). */
+  heartbeat: (streamId: string, viewerId: string, accessToken?: string) =>
     request<HeartbeatResult>(`/analytics/streams/${streamId}/heartbeat`, {
       method: 'POST',
+      ...(accessToken ? { accessToken } : {}),
       body: JSON.stringify({ viewerId } satisfies ViewerHeartbeatInput),
     }),
 

@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { User, Mail, ShieldCheck, Bell, Monitor, LogOut } from 'lucide-react';
+import { User, Mail, ShieldCheck, Bell, Monitor, LogOut, Moon, Sun, Check } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useUpdateProfile } from '@/hooks/useUpdateProfile';
 import { useRequireAuth } from '@/lib/use-require-auth';
 import { isSafeImageSrc } from '@/lib/security';
 import { cn } from '@/lib/utils';
+import { ACCENTS, useTheme } from '@/lib/theme-context';
 import { useRouter } from 'next/navigation';
 
 function SectionCard({
@@ -44,6 +45,7 @@ export default function SettingsPage() {
   const { user, loading, logout } = useAuth();
   const { submitting, update } = useUpdateProfile();
   useRequireAuth();
+  const { theme, setTheme, accent, setAccent } = useTheme();
 
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
@@ -255,15 +257,91 @@ export default function SettingsPage() {
           </div>
         </SectionCard>
 
-        {/* Appearance (visual preference; persisted locally) */}
+        {/* Appearance — mode + accent, persisted locally (Phase 12+). */}
         <SectionCard
           icon={<Monitor className="h-4 w-4" />}
           title="Appearance"
-          description="StreamHub is dark by design."
+          description="Pick a color palette — it applies everywhere instantly."
         >
-          <p className="rounded-lg border border-outline-variant/30 bg-surface-container p-md text-body-sm font-body-sm text-on-surface-variant">
-            Theme
-          </p>
+          <div className="flex flex-col gap-lg">
+            {/* Mode: dark / light */}
+            <div>
+              <p className="mb-2 text-label-lg font-label-lg text-on-surface-variant">Mode</p>
+              <div
+                role="radiogroup"
+                aria-label="Color mode"
+                className="grid grid-cols-2 gap-sm sm:max-w-xs"
+              >
+                {([
+                  { id: 'dark' as const, label: 'Dark', Icon: Moon },
+                  { id: 'light' as const, label: 'Light', Icon: Sun },
+                ]).map(({ id, label, Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    aria-checked={theme === id}
+                    onClick={() => setTheme(id)}
+                    className={cn(
+                      'flex items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                      theme === id
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-outline-variant/40 text-on-surface-variant hover:border-outline-variant hover:text-on-surface',
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Accent palette picker */}
+            <div>
+              <p className="mb-2 text-label-lg font-label-lg text-on-surface-variant">Color</p>
+              <div
+                role="radiogroup"
+                aria-label="Accent color"
+                className="grid grid-cols-2 gap-sm sm:grid-cols-3"
+              >
+                {ACCENTS.map((a) => {
+                  const selected = accent === a.id;
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setAccent(a.id)}
+                      className={cn(
+                        'group flex flex-col items-center gap-2 rounded-xl border p-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                        selected
+                          ? 'border-primary bg-primary/10'
+                          : 'border-outline-variant/40 hover:border-outline-variant',
+                      )}
+                    >
+                      {/* Three-tone preview using the accent's real colors. */}
+                      <span className="flex h-10 w-full overflow-hidden rounded-lg">
+                        <span className="h-full flex-[2]" style={{ background: a.swatch[0] }} />
+                        <span className="h-full flex-1" style={{ background: a.swatch[1] }} />
+                        <span className="h-full flex-1" style={{ background: a.swatch[2] }} />
+                      </span>
+                      <span
+                        className={cn(
+                          'flex items-center gap-1.5 text-sm font-medium',
+                          selected ? 'text-primary' : 'text-on-surface-variant group-hover:text-on-surface',
+                        )}
+                      >
+                        {selected && <Check className="h-3.5 w-3.5" aria-hidden />}
+                        {a.label}
+                      </span>
+                      <span className="sr-only">{selected ? 'Selected' : 'Not selected'}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </SectionCard>
 
         {/* Sign out */}

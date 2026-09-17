@@ -25,11 +25,14 @@ import {
   peakKey,
   presenceKey,
   presencePattern,
+  pointsPresenceKey,
+  pointsPresencePattern,
   viewsKey,
   watchKey,
 } from './analytics.constants';
 import { DAY_MS, HOUR_MS, MINUTE_MS, capTimelinePoints, computeAverages, foldViewerMetrics, round2 } from './analytics.util';
 import { chatChannelName } from '../chat/chat.constants';
+import { PointsService } from '../points/points.service';
 
 /** Minimal stream facts the lifecycle hooks need — see docs/analytics.md. */
 export interface StreamLifecycleEvent {
@@ -85,6 +88,7 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly points: PointsService,
   ) {}
 
   /** The background flush timer runs in dev/prod only — e2e tests drive
@@ -210,7 +214,12 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
    * pinging, not generate error traffic. Throws `NotFoundException` for a
    * stream id that doesn't exist at all.
    */
-  async recordHeartbeat(streamId: string, viewerId: string): Promise<{ accepted: boolean }> {
+  async recordHeartbeat(
+    streamId: string,
+    viewerId: string,
+    /** Signed-in viewer id (JWT sub) — enables watch-time points. */
+    userId?: string,
+  ): Promise<{ accepted: boolean }> {
     const client = this.redis.getClient();
 
     const isLive = await client.hexists(ANALYTICS_REDIS_LIVE_PREFIX, streamId);
@@ -230,6 +239,12 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
     const fresh = await client.set(presenceKey(streamId, viewerId), '1', 'EX', ANALYTICS_HEARTBEAT_TTL_SECONDS, 'NX');
     if (fresh === 'OK') {
       await this.onFreshJoin(streamId);
+    }
+    // Phase 12 — shadow presence for signed-in viewers (points accrual).
+    // Same TTL, separate namespace so the flush can distinguish who earns
+    // points without redefining "a viewer" for the analytics counters.
+    if (userId) {
+      await client.set(pointsPresenceKey(streamId, userId), '1', 'EX', ANALYTICS_HEARTBEAT_TTL_SECONDS);
     }
     // Broadcast the exact current presence count to everyone in the stream's
     // room, so live viewer numbers update without a page refresh, not just
@@ -317,6 +332,42 @@ export class AnalyticsService implements OnModuleInit, OnModuleDestroy {
     });
     await this.prisma.stream.update({ where: { id: streamId }, data: { viewerCount: count } });
     await this.broadcastViewerCount(streamId, count);
+    await this.awardWatchTimePoints(streamId);
+  }
+
+  /**
+   * Phase 12 — watch-time points. Scans the signed-in viewers' shadow
+   * presence keys for this stream and hands the per-viewer elapsed seconds
+   * (interval since the last flush) to PointsService. Redis-only apart
+   * from the actual ledger write; failures are contained inside the points
+   * service so the analytics sample itself is never at risk.
+   */
+  private async awardWatchTimePoints(streamId: string): Promise<void> {
+    try {
+      const client = this.redis.getClient();
+      const lastFlush = await this.readNumeric(lastFlushKey(streamId));
+      const elapsedSeconds = lastFlush > 0 ? Math.floor((Date.now() - lastFlush) / 1000) : 0;
+      if (elapsedSeconds <= 0) return;
+
+      let cursor = '0';
+      const userIds: string[] = [];
+      do {
+        const [next, keys] = await client.scan(cursor, 'MATCH', pointsPresencePattern(streamId), 'COUNT', 5000);
+        cursor = next;
+        for (const key of keys) {
+          // Key shape: points:presence:<streamId>:<userId> — userId is
+          // everything after the streamId prefix segment.
+          const rest = key.slice(`points:presence:${streamId}:`.length);
+          if (rest.length > 0) userIds.push(rest);
+        }
+      } while (cursor !== '0');
+      if (userIds.length === 0) return;
+
+      const interval = Math.min(elapsedSeconds, ANALYTICS_HEARTBEAT_TTL_SECONDS);
+      await this.points.awardWatchTime(userIds.map((userId) => ({ userId, seconds: interval, streamId })));
+    } catch {
+      // Points are a bonus — never let them break the flush.
+    }
   }
 
   // ------------------------------------------------------------------

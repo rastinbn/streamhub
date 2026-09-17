@@ -15,10 +15,15 @@ import {
   Clapperboard,
   LayoutTemplate,
   Settings,
+  Sun,
+  Moon,
+  Volume2,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { useTheme } from '@/lib/theme-context';
 import { isSafeImageSrc } from '@/lib/security';
 import { canStream } from '@/lib/roles';
+import PointsBalanceChip from '@/components/points/PointsBalanceChip';
 
 /** Creator entries shown in the profile menu on <lg screens, where the
  * sidebar (which hosts the Creator section) is hidden. Mirrors the sidebar's
@@ -29,6 +34,7 @@ const MOBILE_CREATOR_ITEMS = [
   { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/dashboard/content', label: 'Content', icon: Clapperboard },
   { href: '/dashboard/channel/layout', label: 'Page builder', icon: LayoutTemplate },
+  { href: '/dashboard/memes', label: 'Meme sounds', icon: Volume2 },
   { href: '/dashboard/settings', label: 'Creator settings', icon: Settings },
 ];
 
@@ -39,7 +45,8 @@ export default function TopNav() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, accessToken } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const router = useRouter();
 
   /** Search routes to the real browse page, which passes `q` to the backend
@@ -150,6 +157,19 @@ export default function TopNav() {
             endpoints yet) — the bell is intentionally inert. */}
         <button aria-label="Notifications (not available yet)" title="Not available yet" disabled className={`${iconBtn} cursor-not-allowed opacity-40`}>
           <Bell className="h-5 w-5" />
+        </button>
+
+        {/* Phase 12 — viewer points balance (signed-in users only). */}
+        {user && accessToken && <PointsBalanceChip accessToken={accessToken} />}
+
+        {/* Phase 12 — light/dark theme toggle. */}
+        <button
+          onClick={toggleTheme}
+          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          title={theme === 'dark' ? 'Light theme' : 'Dark theme'}
+          className={iconBtn}
+        >
+          {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
         </button>
 
         {!loading && !user && (

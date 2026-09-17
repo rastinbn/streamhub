@@ -13,30 +13,33 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  username     String   @unique
-  email        String   @unique
-  passwordHash String
-  displayName  String?
-  avatar       String?
-  bio          String?
-  role         Role     @default(USER)
-  emailVerified Boolean @default(false)
+  id            String    @id @default(cuid())
+  username      String    @unique
+  email         String    @unique
+  passwordHash  String
+  displayName   String?
+  avatar        String?
+  bio           String?
+  role          Role      @default(USER)
+  emailVerified Boolean   @default(false)
   // Phase 10 — Moderation. Set by the admin/moderation ban endpoint; a
   // banned user cannot log in (enforced in AuthService.login) and their
   // refresh tokens are revoked at ban time. `banReason` is an internal
   // moderator note — stripped from every public user payload.
-  bannedAt     DateTime?
-  banReason    String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  bannedAt      DateTime?
+  banReason     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  channel   Channel?
-  follows   Follow[]       @relation("FollowerUser")
-  messages  ChatMessage[]
-  notifications Notification[]
+  channel                 Channel?
+  follows                 Follow[]                 @relation("FollowerUser")
+  messages                ChatMessage[]
+  notifications           Notification[]
   emailVerificationTokens EmailVerificationToken[]
-  submittedReports Report[] @relation("SubmittedReports")
+  submittedReports        Report[]                 @relation("SubmittedReports")
+  // Viewer points (Phase 12) — one wallet per user, append-only ledger.
+  pointsWallet            PointsWallet?
+  pointsEntries           PointsLedger[]
 
   @@map("users")
 }
@@ -66,28 +69,30 @@ enum Role {
 }
 
 model Channel {
-  id             String   @id @default(cuid())
-  slug           String   @unique
-  name           String
-  description    String?
-  avatar         String?
-  banner         String?
-  category       String?
-  followersCount Int      @default(0)
-  ownerId        String   @unique
-  owner          User     @relation(fields: [ownerId], references: [id])
+  id               String    @id @default(cuid())
+  slug             String    @unique
+  name             String
+  description      String?
+  avatar           String?
+  banner           String?
+  category         String?
+  followersCount   Int       @default(0)
+  ownerId          String    @unique
+  owner            User      @relation(fields: [ownerId], references: [id])
   // Phase 10 — Moderation. A suspended channel cannot create streams, the
   // MediaMTX publish webhook denies its stream keys, and any live broadcast
   // is force-ended at suspension time.
   suspendedAt      DateTime?
   suspensionReason String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   streams      Stream[]
-  followers    Follow[]      @relation("FollowedChannel")
+  followers    Follow[]          @relation("FollowedChannel")
   chatMessages ChatMessage[]
   layout       StreamPageLayout?
+  // Meme sounds this channel's owner uploaded for viewers to play in chat.
+  memeSounds   MemeSound[]
 
   @@index([category])
   @@index([name])
@@ -101,15 +106,15 @@ model Channel {
 // before persistence (see docs/stream-page-layout.md). `layout` is null
 // until the first publish — the public page falls back to the default.
 model StreamPageLayout {
-  id          String   @id @default(cuid())
-  channelId   String   @unique
-  channel     Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  version     Int      @default(1)
-  layout      Json?
-  draftLayout Json?
-  hasPublished Boolean @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  channelId    String   @unique
+  channel      Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  version      Int      @default(1)
+  layout       Json?
+  draftLayout  Json?
+  hasPublished Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@map("stream_page_layouts")
 }
@@ -134,7 +139,7 @@ model Stream {
   // playback URL (`http://<hls-host>:8888/<playbackPath>/index.m3u8`). It is
   // the same opaque path OBS publishes to, so it is only ever exposed to
   // clients for LIVE streams; non-live rows never serialize it.
-  playbackPath String?       @unique
+  playbackPath  String?      @unique
   status        StreamStatus @default(OFFLINE)
   startedAt     DateTime?
   endedAt       DateTime?
@@ -146,9 +151,10 @@ model Stream {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
-  analytics      StreamAnalytics?
-  viewerMetrics  ViewerMetric[]
-  vods           Vod[]
+  analytics     StreamAnalytics?
+  viewerMetrics ViewerMetric[]
+  vods          Vod[]
+  pointsLedger  PointsLedger[]
 
   @@index([channelId])
   @@index([status])
@@ -168,22 +174,22 @@ model Stream {
 // (overview, per-stream lists) hit a single small table with its own index
 // instead of joining through `streams`.
 model StreamAnalytics {
-  id               String   @id @default(cuid())
-  streamId         String   @unique
-  stream           Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  id               String    @id @default(cuid())
+  streamId         String    @unique
+  stream           Stream    @relation(fields: [streamId], references: [id], onDelete: Cascade)
   channelId        String
   startedAt        DateTime
   endedAt          DateTime?
-  durationSeconds  Int      @default(0)
-  watchTimeSeconds Int      @default(0)
-  totalViews       Int      @default(0)
-  peakViewers      Int      @default(0)
+  durationSeconds  Int       @default(0)
+  watchTimeSeconds Int       @default(0)
+  totalViews       Int       @default(0)
+  peakViewers      Int       @default(0)
   // Weighted by watch time: watchTimeSeconds / durationSeconds. Float so
   // non-integer averages (e.g. 7.5 concurrent viewers) survive persistence.
-  averageViewers   Float    @default(0)
-  followersGained  Int      @default(0)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  averageViewers   Float     @default(0)
+  followersGained  Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@index([channelId, startedAt])
   @@map("stream_analytics")
@@ -229,24 +235,24 @@ enum VodVisibility {
 // One VOD per finished broadcast; created by the MediaMTX recording
 // webhook, never written by user-facing API routes.
 model Vod {
-  id          String        @id @default(cuid())
+  id              String        @id @default(cuid())
   // Nullable: the source stream row can be hard-deleted (admin panel) while
   // the recording itself is kept — the relation is ON DELETE SET NULL.
-  streamId    String?
-  stream      Stream?       @relation(fields: [streamId], references: [id], onDelete: SetNull)
-  channelId   String
-  title       String
-  description String?
-  thumbnail   String?
+  streamId        String?
+  stream          Stream?       @relation(fields: [streamId], references: [id], onDelete: SetNull)
+  channelId       String
+  title           String
+  description     String?
+  thumbnail       String?
   // Object-storage key (e.g. "vods/{channelId}/{streamId}/recording.mp4").
   // Never a full URL — the storage provider resolves it to a playable
   // URL/download link, so switching providers never rewrites the DB.
-  storageKey  String
-  durationSeconds Int       @default(0)
-  views       Int           @default(0)
-  visibility  VodVisibility @default(PRIVATE)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  storageKey      String
+  durationSeconds Int           @default(0)
+  views           Int           @default(0)
+  visibility      VodVisibility @default(PRIVATE)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   @@index([channelId, createdAt])
   @@index([visibility, createdAt])
@@ -254,13 +260,89 @@ model Vod {
   @@map("vods")
 }
 
+// Phase 12 — Viewer points economy. A wallet is created lazily on first
+// award; balance changes ONLY through PointsLedger entries (the service
+// writes ledger row + wallet update in one transaction), so the balance is
+// always reconstructible from the ledger. Points have no cash value.
+model PointsWallet {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance     Int      @default(0)
+  totalEarned Int      @default(0)
+  totalSpent  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("points_wallets")
+}
+
+// Earn/spend reasons. WATCH_TIME accrues via the analytics heartbeat
+// pipeline (1 point per minute watched); CHAT_MESSAGE via the chat gateway
+// (small per-message award, rate-limited by chat itself); MEME_PLAY is the
+// spend side of playing a sound; ADMIN_ADJUST is a manual moderator/admin
+// correction (audit-logged by the admin module).
+enum PointsReason {
+  WATCH_TIME
+  CHAT_MESSAGE
+  MEME_PLAY
+  ADMIN_ADJUST
+}
+
+// Append-only transaction log — the source of truth for every balance
+// change. `streamId` is nullable because chat-message awards are scoped to
+// a stream while admin adjustments may not be. No update/delete path exists.
+model PointsLedger {
+  id           String       @id @default(cuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reason       PointsReason
+  delta        Int
+  // Balance AFTER applying delta — makes the ledger independently auditable
+  // without replaying history.
+  balanceAfter Int
+  streamId     String?
+  stream       Stream?      @relation(fields: [streamId], references: [id], onDelete: SetNull)
+  metadata     Json?
+  createdAt    DateTime     @default(now())
+
+  @@index([userId, createdAt])
+  @@map("points_ledger")
+}
+
+// Phase 12 — Meme sounds. A streamer uploads short audio clips that their
+// viewers can play in chat by paying points. The audio binary lives in
+// object storage (same abstraction as thumbnails/VODs — never in Postgres);
+// this row is metadata + pricing only. Soft-disable via `active: false`
+// keeps historical play records coherent.
+model MemeSound {
+  id              String   @id @default(cuid())
+  channelId       String
+  channel         Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  title           String
+  // Object-storage key (e.g. "memes/{channelId}/{uuid}.mp3"). Resolved to a
+  // playable URL by the storage provider, like VOD storageKey.
+  storageKey      String
+  // Cost in points to play, chosen by the streamer (0 = free).
+  price           Int      @default(0)
+  // Seconds, for client-side UI hints; informational only.
+  durationSeconds Int      @default(0)
+  playCount       Int      @default(0)
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([channelId, createdAt])
+  @@map("meme_sounds")
+}
+
 model Follow {
-  id           String   @id @default(cuid())
-  followerId   String
-  follower     User     @relation("FollowerUser", fields: [followerId], references: [id])
-  channelId    String
-  channel      Channel  @relation("FollowedChannel", fields: [channelId], references: [id])
-  createdAt    DateTime @default(now())
+  id         String   @id @default(cuid())
+  followerId String
+  follower   User     @relation("FollowerUser", fields: [followerId], references: [id])
+  channelId  String
+  channel    Channel  @relation("FollowedChannel", fields: [channelId], references: [id])
+  createdAt  DateTime @default(now())
 
   @@unique([followerId, channelId])
   // The compound unique index above is a leftmost-prefix index on
@@ -306,13 +388,13 @@ model ChatMessage {
 }
 
 model Notification {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
   type      String
   payload   Json?
   readAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@map("notifications")
 }
@@ -345,19 +427,19 @@ enum ReportStatus {
 }
 
 model Report {
-  id            String           @id @default(cuid())
-  reporterId    String
-  reporter      User             @relation("SubmittedReports", fields: [reporterId], references: [id], onDelete: Cascade)
-  targetType    ReportTargetType
-  targetId      String
-  reason        ReportReason
-  description   String?
-  status        ReportStatus     @default(PENDING)
-  reviewedById  String?
-  reviewedAt    DateTime?
+  id             String           @id @default(cuid())
+  reporterId     String
+  reporter       User             @relation("SubmittedReports", fields: [reporterId], references: [id], onDelete: Cascade)
+  targetType     ReportTargetType
+  targetId       String
+  reason         ReportReason
+  description    String?
+  status         ReportStatus     @default(PENDING)
+  reviewedById   String?
+  reviewedAt     DateTime?
   resolutionNote String?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
   @@index([status, createdAt])
   @@index([targetType, targetId])

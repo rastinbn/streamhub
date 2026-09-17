@@ -5,6 +5,7 @@ import type {
   ChatMessagePayload,
   ChatSystemPayload,
   FollowerCountPayload,
+  MemePlayPayload,
   ViewerCountPayload,
 } from '@streamhub/types';
 import { useAuth } from '@/lib/auth-context';
@@ -54,6 +55,10 @@ export function useWatchChat(streamId: string | undefined) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [liveViewerCount, setLiveViewerCount] = useState<number | null>(null);
   const [liveFollowersCount, setLiveFollowersCount] = useState<number | null>(null);
+  /** Phase 12 — latest meme-play event (played by anyone in the room). */
+  const [memeEvent, setMemeEvent] = useState<MemePlayPayload | null>(null);
+  /** Phase 12 — points toast info for the local user (awarded while chatting). */
+  const [pointsAwarded, setPointsAwarded] = useState<number | null>(null);
   const socketRef = useRef<ChatSocket | null>(null);
 
   /** The signed-in viewer may moderate when the gateway says they can
@@ -123,6 +128,13 @@ export function useWatchChat(streamId: string | undefined) {
       if (payload.streamId !== streamId) return;
       setLiveFollowersCount(payload.followersCount);
     };
+    const onMeme = (payload: MemePlayPayload) => {
+      if (payload.streamId !== streamId) return;
+      setMemeEvent(payload);
+    };
+    const onPointsAwarded = (payload: { amount: number }) => {
+      setPointsAwarded(payload.amount);
+    };
     const onConnectError = () => setStatus('error');
     const onDisconnect = (reason: string) => {
       // Socket.IO auto-reconnects; drop back to "connecting" until history
@@ -139,6 +151,8 @@ export function useWatchChat(streamId: string | undefined) {
     socket.on('chat:error', onError);
     socket.on('viewer-count', onViewerCount);
     socket.on('follower-count', onFollowerCount);
+    socket.on('chat:meme', onMeme);
+    socket.on('points:awarded', onPointsAwarded);
     socket.on('connect_error', onConnectError);
     socket.on('disconnect', onDisconnect);
 
@@ -150,6 +164,8 @@ export function useWatchChat(streamId: string | undefined) {
       socket.off('chat:error', onError);
       socket.off('viewer-count', onViewerCount);
       socket.off('follower-count', onFollowerCount);
+      socket.off('chat:meme', onMeme);
+      socket.off('points:awarded', onPointsAwarded);
       socket.off('connect_error', onConnectError);
       socket.off('disconnect', onDisconnect);
       if (socket.connected) {
@@ -190,18 +206,41 @@ export function useWatchChat(streamId: string | undefined) {
     [emit, streamId],
   );
 
+  /** Phase 12 — emit a meme play (points are debited server-side; a
+   * `chat:meme` broadcast comes back to everyone including us). */
+  const playMeme = useCallback(
+    (soundId: string): boolean => {
+      const socket = socketRef.current;
+      if (!socket || !socket.connected || status !== 'connected' || !streamId) return false;
+      socket.emit('chat:play-meme', { streamId, soundId });
+      return true;
+    },
+    [status, streamId],
+  );
+
+  const clearMemeEvent = useCallback(() => setMemeEvent(null), []);
+  const clearPointsAwarded = useCallback(() => setPointsAwarded(null), []);
+
   return {
     status,
     messages,
     errorMessage,
     liveViewerCount,
     liveFollowersCount,
+    /** Raw session token — exposed so feature UIs (points/memes) can call
+     * authenticated REST endpoints without a second auth source. */
+    accessToken,
     requiresAuth: !accessToken,
     canModerate,
     send,
     timeoutUser,
     banUser,
     unbanUser,
+    playMeme,
+    memeEvent,
+    clearMemeEvent,
+    pointsAwarded,
+    clearPointsAwarded,
     clearError: () => setErrorMessage(null),
   };
 }

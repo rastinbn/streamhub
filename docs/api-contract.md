@@ -240,10 +240,30 @@ Public, no auth required. Paginated (see below). `200` with `{ items: FollowerEn
 | POST | `/users/me/channel/layout/reset` | Bearer, owner-only | Draft := default layout (published page untouched until published) |
 
 See **docs/stream-page-layout.md** for the JSON schema, validation rules,
-widget types, cache behavior, and security model.
-
-Errors: `400` invalid layout (message names the exact violation), `401`,
+widget types, cache behavior, and security model.Errors: `400` invalid layout (message names the exact violation), `401`,
 `404` (unknown slug / caller has no channel).
+
+## Viewer points & memes — `/points`, `/memes` *(Phase 12)*
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/points/me` | Bearer | Wallet (`balance`/`totalEarned`/`totalSpent`) + paginated ledger |
+| POST | `/memes` | Bearer, owner-only | Upload a meme sound (base64 audio, ≤512 KB, mp3/wav/ogg/m4a; body `{ title, data, format, price, durationSeconds? }`) |
+| GET | `/memes/mine` | Bearer, owner-only | Caller's own sounds, including inactive |
+| GET | `/memes/channels/:channelId` | — | Active sounds for a channel's chat board (`MemeSoundListResponse`; never exposes `storageKey`) |
+| PATCH | `/memes/:id` | Bearer, owner-only | Update `{ title?, price?, active? }` |
+| DELETE | `/memes/:id` | Bearer, owner-only | Delete the sound and its stored object |
+
+Points are earned automatically: watch time (1/min, signed-in heartbeats,
+flushed by the analytics pipeline) and accepted chat messages (1 per
+message, max 5 per 60s). Playing a sound emits socket `chat:play-meme →
+chat:meme` and debits the price server-side (403 when unaffordable); the
+eander also receives `points:awarded` on chat points. See
+**docs/points-and-memes.md**.
+
+Errors: `401` unauthenticated, `403` insufficient points / not the sound's
+owner surface as `404` (no existence leak), `400` invalid payload.
+
 
 ## Categories — `/categories` *(Phase 7)*
 

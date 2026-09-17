@@ -10,3 +10,5 @@ export * from './admin';
 export * from './vod';
 export * from './moderation';
 export * from './layout';
+export * from './points';
+export * from './chat-extensions';

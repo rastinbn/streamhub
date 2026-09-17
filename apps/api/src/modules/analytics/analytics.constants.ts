@@ -64,6 +64,19 @@ export const ANALYTICS_REDIS_WATCH_PREFIX = 'analytics:watch:';
  * convert "viewers in the last interval" into watch seconds. */
 export const ANALYTICS_REDIS_LAST_FLUSH_PREFIX = 'analytics:lastflush:';
 
+/** Phase 12 (points) — `points:presence:<streamId>:<userId>` = '1' with the
+ * same TTL as anonymous presence. Written ONLY when a heartbeat carries a
+ * valid Bearer token (optional auth), so signed-in viewers accrue watch-time
+ * points while guests never do. Kept in the analytics key namespace because
+ * the flush pipeline scans it alongside the anonymous presence set. */
+export const POINTS_REDIS_PRESENCE_PREFIX = 'points:presence:';
+
+/** Phase 12 (points) — `points:watchacc:<userId>` = seconds carried over
+ * since the last full minute was awarded. Lets watch-time points accrue
+ * accurately at any flush cadence (e.g. 30s flushes → 1 point per 2
+ * flushes) without per-heartbeat Postgres writes. */
+export const POINTS_REDIS_WATCH_ACC_PREFIX = 'points:watchacc:';
+
 export function presenceKey(streamId: string, viewerId: string): string {
   return `${ANALYTICS_REDIS_PRESENCE_PREFIX}${streamId}:${viewerId}`;
 }
@@ -91,4 +104,17 @@ export function watchKey(streamId: string): string {
 
 export function lastFlushKey(streamId: string): string {
   return `${ANALYTICS_REDIS_LAST_FLUSH_PREFIX}${streamId}`;
+}
+
+export function pointsPresenceKey(streamId: string, userId: string): string {
+  return `${POINTS_REDIS_PRESENCE_PREFIX}${streamId}:${userId}`;
+}
+
+/** SCAN pattern matching every signed-in viewer's presence key for a stream. */
+export function pointsPresencePattern(streamId: string): string {
+  return `${POINTS_REDIS_PRESENCE_PREFIX}${streamId}:*`;
+}
+
+export function pointsWatchAccKey(userId: string): string {
+  return `${POINTS_REDIS_WATCH_ACC_PREFIX}${userId}`;
 }

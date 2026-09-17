@@ -1,4 +1,5 @@
-import { Logger, UnauthorizedException, type OnModuleDestroy } from '@nestjs/common';
+import { ForbiddenException, Logger, NotFoundException, UnauthorizedException, type OnModuleDestroy } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import {
   ConnectedSocket,
   MessageBody,
@@ -17,11 +18,14 @@ import type { Role } from '@streamhub/types';
 import type { ChatErrorCode, ChatMessagePayload, ChatSystemPayload } from '@streamhub/types';
 import { RedisService } from '../../redis/redis.service';
 import { getSecret } from '../../common/config/secrets';
+import { MemesService } from '../memes/memes.service';
+import { PointsService, POINTS_CHAT_MESSAGE_AWARD } from '../points/points.service';
 import { ChatService, ChatDuplicateMessageError, ChatRateLimitedError, type StreamContext } from './chat.service';
 import { ChatModerationService } from './chat-moderation.service';
 import { StreamRoomDto } from './dto/stream-room.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { ModerateUserDto, TimeoutUserDto } from './dto/moderate-user.dto';
+import { PlayMemeDto } from './dto/play-meme.dto';
 import { chatChannelName, streamIdFromChannelName } from './chat.constants';
 
 interface AuthedSocketData {
@@ -80,6 +84,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     private readonly redis: RedisService,
     private readonly chat: ChatService,
     private readonly moderation: ChatModerationService,
+    private readonly memes: MemesService,
+    private readonly points: PointsService,
   ) {
     this.subscriber = this.redis.createSubscriber();
   }
@@ -120,6 +126,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
           });
         } else if (message.kind === 'system') {
           this.server.to(roomName(streamId)).emit('chat:system', message as unknown as ChatSystemPayload);
+        } else if (message.kind === 'meme') {
+          this.server.to(roomName(streamId)).emit('chat:meme', message);
         } else {
           this.server.to(roomName(streamId)).emit('chat:message', message as unknown as ChatMessagePayload);
         }
@@ -234,6 +242,71 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       } else {
         this.logger.error(`chat:send failed: ${err}`);
         this.emitError(socket, 'INTERNAL_ERROR', 'Failed to send message');
+      }
+      return;
+    }
+
+    // Points for chatting (Phase 12) — best-effort, AFTER the message was
+    // accepted: a points hiccup must never fail a chat message. The award
+    // is capped per window inside PointsService.
+    this.points
+      .awardForChat(socket.data.user.id)
+      .then((awarded) => {
+        if (awarded) {
+          socket.emit('points:awarded', { amount: POINTS_CHAT_MESSAGE_AWARD, reason: 'CHAT_MESSAGE' });
+        }
+      })
+      .catch((err) => this.logger.warn(`points award failed: ${err}`));
+  }
+
+  /**
+   * Phase 12 — play a meme sound in this stream's chat. The player must be
+   * in the room (joined) and not banned/timed-out; pricing and the debit
+   * are handled by MemesService.play (which throws Forbidden when the
+   * viewer can't afford the sound). The resulting `chat:meme` event is
+   * broadcast through the same Redis pub/sub path as chat messages so every
+   * instance delivers it — memes are heard by everyone in the room.
+   */
+  @SubscribeMessage('chat:play-meme')
+  async onPlayMeme(@ConnectedSocket() socket: AuthedSocket, @MessageBody() body: unknown) {
+    const dto = await this.validateOrError(socket, PlayMemeDto, body);
+    if (!dto) return;
+
+    const ctx = await this.tryGetStreamContext(socket, dto.streamId);
+    if (!ctx) return;
+
+    if (!socket.data.rooms.has(dto.streamId)) {
+      this.emitError(socket, 'FORBIDDEN', 'Join the chat before playing sounds');
+      return;
+    }
+
+    if (await this.moderation.isBanned(ctx.channelId, socket.data.user.id)) {
+      this.emitError(socket, 'BANNED', "You are banned from this channel's chat");
+      return;
+    }
+
+    try {
+      const sound = await this.memes.play(socket.data.user.id, socket.data.user.username, dto.streamId, dto.soundId);
+      const payload = {
+        id: randomUUID(),
+        streamId: dto.streamId,
+        soundId: sound.id,
+        title: sound.title,
+        soundUrl: sound.soundUrl,
+        username: socket.data.user.username,
+        playedAt: new Date().toISOString(),
+      };
+      await this.redis
+        .getClient()
+        .publish(chatChannelName(dto.streamId), JSON.stringify({ ...payload, kind: 'meme' }));
+    } catch (err) {
+      if (err instanceof ForbiddenException) {
+        this.emitError(socket, 'FORBIDDEN', err.message);
+      } else if (err instanceof NotFoundException) {
+        this.emitError(socket, 'NOT_FOUND', 'Meme sound not found');
+      } else {
+        this.logger.error(`chat:play-meme failed: ${err}`);
+        this.emitError(socket, 'INTERNAL_ERROR', 'Failed to play sound');
       }
     }
   }

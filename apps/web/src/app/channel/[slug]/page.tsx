@@ -242,6 +242,7 @@ className={cn(
             stream={watchStream}
             liveStreamId={isLive && liveStream ? liveStream.id : null}
             viewerCount={watchStream?.viewerCount ?? formatCompact(liveStream?.viewerCount ?? 0)}
+            channelId={channel.id}
           />
         )}
       </div>

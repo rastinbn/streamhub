@@ -2,6 +2,478 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------------------------------
+ * Theme tokens (Phase 12 — light/dark theme).
+ *
+ * Every Material-style color the app uses is a CSS variable. `:root` holds
+ * the dark palette (the original design — background #111417 etc.); `.light`
+ * on <html> overrides the token values with a light palette. All Tailwind
+ * color utilities route through these variables (see tailwind.config.js),
+ * so `bg-background`, `text-on-surface`, etc. respond to the theme with no
+ * per-component conditional classes.
+ *
+ * Components MUST use theme utilities (never raw hex) to stay theme-aware.
+ * ------------------------------------------------------------------------ */
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --md-background: #111417;
+  --md-surface: #111417;
+  --md-surface-dim: #111417;
+  --md-surface-bright: #37393d;
+  --md-surface-container-lowest: #0b0e11;
+  --md-surface-container-low: #191c1f;
+  --md-surface-container: #1d2023;
+  --md-surface-container-high: #272a2e;
+  --md-surface-container-highest: #323538;
+  --md-surface-variant: #323538;
+  --md-inverse-surface: #e1e2e7;
+  --md-inverse-on-surface: #2e3134;
+
+  /* Content colors */
+  --md-on-surface: #e1e2e7;
+  --md-on-surface-variant: #cdc2d8;
+  --md-on-background: #e1e2e7;
+  --md-outline: #968da1;
+  --md-outline-variant: #4b4455;
+
+  /* Primary (brand purple) */
+  --md-primary: #d5baff;
+  --md-on-primary: #42008a;
+  --md-primary-container: #9147ff;
+  --md-on-primary-container: #fffcff;
+  --md-primary-fixed: #ecdcff;
+  --md-primary-fixed-dim: #d5baff;
+  --md-on-primary-fixed: #270057;
+  --md-on-primary-fixed-variant: #5e00c1;
+  --md-inverse-primary: #7926e7;
+  --md-surface-tint: #d5baff;
+
+  /* Secondary (cyan) */
+  --md-secondary: #d3fbff;
+  --md-on-secondary: #00363a;
+  --md-secondary-container: #00eefc;
+  --md-on-secondary-container: #00686f;
+  --md-secondary-fixed: #7df4ff;
+  --md-secondary-fixed-dim: #00dbe9;
+  --md-on-secondary-fixed: #002022;
+  --md-on-secondary-fixed-variant: #004f54;
+
+  /* Tertiary (amber) */
+  --md-tertiary: #ffb779;
+  --md-on-tertiary: #4c2700;
+  --md-tertiary-container: #af6100;
+  --md-on-tertiary-container: #fffcff;
+  --md-tertiary-fixed: #ffdcc1;
+  --md-tertiary-fixed-dim: #ffb779;
+  --md-on-tertiary-fixed: #2e1500;
+  --md-on-tertiary-fixed-variant: #6c3a00;
+
+  /* Error */
+  --md-error: #ffb4ab;
+  --md-on-error: #690005;
+  --md-error-container: #93000a;
+  --md-on-error-container: #ffdad6;
+
+  /* Status colors (shared across themes) */
+  --md-live: #ff4b4b;
+  --md-on-live: #ffffff;
+  --md-online: #4ade80;
+}
+
+/* Light theme — same token names, light values. */
+.light {
+  color-scheme: light;
+
+  --md-background: #f7f4fb;
+  --md-surface: #f7f4fb;
+  --md-surface-dim: #dcd9e1;
+  --md-surface-bright: #f7f4fb;
+  --md-surface-container-lowest: #ffffff;
+  --md-surface-container-low: #f1eef6;
+  --md-surface-container: #ebe7f1;
+  --md-surface-container-high: #e5e1ec;
+  --md-surface-container-highest: #e0dbe7;
+  --md-surface-variant: #e5e1ec;
+  --md-inverse-surface: #2e3134;
+  --md-inverse-on-surface: #f1eef6;
+
+  --md-on-surface: #1b1b1f;
+  --md-on-surface-variant: #48454e;
+  --md-on-background: #1b1b1f;
+  --md-outline: #7a7682;
+  --md-outline-variant: #cac5d2;
+
+  --md-primary: #7926e7;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #ecdcff;
+  --md-on-primary-container: #270057;
+  --md-primary-fixed: #ecdcff;
+  --md-primary-fixed-dim: #d5baff;
+  --md-on-primary-fixed: #270057;
+  --md-on-primary-fixed-variant: #5e00c1;
+  --md-inverse-primary: #d5baff;
+  --md-surface-tint: #7926e7;
+
+  --md-secondary: #00686f;
+  --md-on-secondary: #ffffff;
+  --md-secondary-container: #9cf1fa;
+  --md-on-secondary-container: #002022;
+  --md-secondary-fixed: #7df4ff;
+  --md-secondary-fixed-dim: #00dbe9;
+  --md-on-secondary-fixed: #002022;
+  --md-on-secondary-fixed-variant: #004f54;
+
+  --md-tertiary: #8f4b00;
+  --md-on-tertiary: #ffffff;
+  --md-tertiary-container: #ffdcc1;
+  --md-on-tertiary-container: #2e1500;
+  --md-tertiary-fixed: #ffdcc1;
+  --md-tertiary-fixed-dim: #ffb779;
+  --md-on-tertiary-fixed: #2e1500;
+  --md-on-tertiary-fixed-variant: #6c3a00;
+
+  --md-error: #b3261e;
+  --md-on-error: #ffffff;
+  --md-error-container: #ffdad6;
+  --md-on-error-container: #410e0b;
+
+  --md-live: #e2373c;
+  --md-on-live: #ffffff;
+  --md-online: #15803d;
+}
+
+/* Accent palettes (Phase 12+ theme picker). Each accent overrides ONLY the
+   primary/secondary/tertiary token groups — surfaces, error and status
+   colors stay shared, so every accent works in both dark and light modes.
+   The default `purple` palette lives in :root/.light above; the other five
+   accents are applied as an `accent-<id>` class on <html> by the theme
+   provider (apps/web/src/lib/theme-context.tsx). Values follow the same
+   Material-style contrast rules as the base palettes (on-X vs X). */
+
+/* Ocean — cyan/blue on dark slate. */
+.accent-ocean {
+  --md-primary: #4cd7e9;
+  --md-on-primary: #00323c;
+  --md-primary-container: #00d5ea;
+  --md-on-primary-container: #002a33;
+  --md-primary-fixed: #a9eff7;
+  --md-primary-fixed-dim: #4cd7e9;
+  --md-on-primary-fixed: #002028;
+  --md-on-primary-fixed-variant: #004c5b;
+  --md-inverse-primary: #00a3b8;
+  --md-surface-tint: #4cd7e9;
+
+  --md-secondary: #a9c7ff;
+  --md-on-secondary: #0a3050;
+  --md-secondary-container: #2c66c4;
+  --md-on-secondary-container: #f2f7ff;
+  --md-secondary-fixed: #d3e3ff;
+  --md-secondary-fixed-dim: #a9c7ff;
+  --md-on-secondary-fixed: #002242;
+  --md-on-secondary-fixed-variant: #194674;
+
+  --md-tertiary: #63d9bb;
+  --md-on-tertiary: #00382c;
+  --md-tertiary-container: #00a68c;
+  --md-on-tertiary-container: #002019;
+  --md-tertiary-fixed: #b1ecd9;
+  --md-tertiary-fixed-dim: #63d9bb;
+  --md-on-tertiary-fixed: #00251c;
+  --md-on-tertiary-fixed-variant: #005644;
+}
+
+/* Sunset — amber/orange on deep plum. */
+.accent-sunset {
+  --md-primary: #ffbc4d;
+  --md-on-primary: #462b00;
+  --md-primary-container: #ffa000;
+  --md-on-primary-container: #2e1c00;
+  --md-primary-fixed: #ffd9a0;
+  --md-primary-fixed-dim: #ffbc4d;
+  --md-on-primary-fixed: #322000;
+  --md-on-primary-fixed-variant: #664800;
+  --md-inverse-primary: #c97d00;
+  --md-surface-tint: #ffbc4d;
+
+  --md-secondary: #ffb59f;
+  --md-on-secondary: #5c1900;
+  --md-secondary-container: #d94504;
+  --md-on-secondary-container: #fff1ec;
+  --md-secondary-fixed: #ffd8cc;
+  --md-secondary-fixed-dim: #ffb59f;
+  --md-on-secondary-fixed: #4a1200;
+  --md-on-secondary-fixed-variant: #873207;
+
+  --md-tertiary: #ff8fb1;
+  --md-on-tertiary: #4c0529;
+  --md-tertiary-container: #bc1959;
+  --md-on-tertiary-container: #fff0f4;
+  --md-tertiary-fixed: #ffd8e2;
+  --md-tertiary-fixed-dim: #ff8fb1;
+  --md-on-tertiary-fixed: #3e001f;
+  --md-on-tertiary-fixed-variant: #83204a;
+}
+
+/* Rose — magenta/pink with violet support. */
+.accent-rose {
+  --md-primary: #ff8ac2;
+  --md-on-primary: #54003c;
+  --md-primary-container: #e0197f;
+  --md-on-primary-container: #fff0f7;
+  --md-primary-fixed: #ffd8ea;
+  --md-primary-fixed-dim: #ff8ac2;
+  --md-on-primary-fixed: #44002f;
+  --md-on-primary-fixed-variant: #7d0159;
+  --md-inverse-primary: #b3005e;
+  --md-surface-tint: #ff8ac2;
+
+  --md-secondary: #cfc2ff;
+  --md-on-secondary: #2b0083;
+  --md-secondary-container: #6c43dd;
+  --md-on-secondary-container: #f4f1ff;
+  --md-secondary-fixed: #e6dfff;
+  --md-secondary-fixed-dim: #cfc2ff;
+  --md-on-secondary-fixed: #20005f;
+  --md-on-secondary-fixed-variant: #4b2ba8;
+
+  --md-tertiary: #ffb499;
+  --md-on-tertiary: #541a00;
+  --md-tertiary-container: #cc411d;
+  --md-on-tertiary-container: #fff4f0;
+  --md-tertiary-fixed: #ffdbcd;
+  --md-tertiary-fixed-dim: #ffb499;
+  --md-on-tertiary-fixed: #420d00;
+  --md-on-tertiary-fixed-variant: #8c2f0f;
+}
+
+/* Emerald — green with lime support. */
+.accent-emerald {
+  --md-primary: #62dd9a;
+  --md-on-primary: #00391d;
+  --md-primary-container: #00a856;
+  --md-on-primary-container: #002914;
+  --md-primary-fixed: #b0f1c8;
+  --md-primary-fixed-dim: #62dd9a;
+  --md-on-primary-fixed: #002914;
+  --md-on-primary-fixed-variant: #005f31;
+  --md-inverse-primary: #00934a;
+  --md-surface-tint: #62dd9a;
+
+  --md-secondary: #d0e47a;
+  --md-on-secondary: #2d3300;
+  --md-secondary-container: #8fa826;
+  --md-on-secondary-container: #131f00;
+  --md-secondary-fixed: #e6f4ab;
+  --md-secondary-fixed-dim: #d0e47a;
+  --md-on-secondary-fixed: #212700;
+  --md-on-secondary-fixed-variant: #5c6d00;
+
+  --md-tertiary: #e2c45c;
+  --md-on-tertiary: #3c2e00;
+  --md-tertiary-container: #b89d00;
+  --md-on-tertiary-container: #231c00;
+  --md-tertiary-fixed: #f7e287;
+  --md-tertiary-fixed-dim: #e2c45c;
+  --md-on-tertiary-fixed: #2b2100;
+  --md-on-tertiary-fixed-variant: #6e5c00;
+}
+
+/* Midnight — indigo/steel blue, the calm one. */
+.accent-midnight {
+  --md-primary: #b3c3ff;
+  --md-on-primary: #12246e;
+  --md-primary-container: #3f52d4;
+  --md-on-primary-container: #f2f4ff;
+  --md-primary-fixed: #dfe2ff;
+  --md-primary-fixed-dim: #b3c3ff;
+  --md-on-primary-fixed: #001052;
+  --md-on-primary-fixed-variant: #24359f;
+  --md-inverse-primary: #5d75e0;
+  --md-surface-tint: #b3c3ff;
+
+  --md-secondary: #a8cbea;
+  --md-on-secondary: #11334a;
+  --md-secondary-container: #2278c8;
+  --md-on-secondary-container: #f0f7ff;
+  --md-secondary-fixed: #d2e4f7;
+  --md-secondary-fixed-dim: #a8cbea;
+  --md-on-secondary-fixed: #082334;
+  --md-on-secondary-fixed-variant: #2a5578;
+
+  --md-tertiary: #dfbafe;
+  --md-on-tertiary: #3d0a6c;
+  --md-tertiary-container: #8e52d8;
+  --md-on-tertiary-container: #f8f1ff;
+  --md-tertiary-fixed: #ecd8ff;
+  --md-tertiary-fixed-dim: #dfbafe;
+  --md-on-tertiary-fixed: #2c0152;
+  --md-on-tertiary-fixed-variant: #5f239e;
+}
+
+/* Light-mode accent overrides — `.light.accent-<id>` (specificity 0,2,0)
+   beats both `.accent-<id>` and `.light`, so these win in light mode. The
+   brand hues move to darker shades for contrast on light surfaces, and
+   containers become pastels — the same pattern the base `.light` block uses
+   for purple. */
+
+.light.accent-ocean {
+  --md-primary: #00687a;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #9ceef8;
+  --md-on-primary-container: #001f26;
+  --md-primary-fixed: #a9eff7;
+  --md-primary-fixed-dim: #4cd7e9;
+  --md-on-primary-fixed: #002028;
+  --md-on-primary-fixed-variant: #004c5b;
+  --md-inverse-primary: #4cd7e9;
+  --md-surface-tint: #00687a;
+
+  --md-secondary: #194674;
+  --md-on-secondary: #ffffff;
+  --md-secondary-container: #d3e3ff;
+  --md-on-secondary-container: #002242;
+  --md-secondary-fixed: #d3e3ff;
+  --md-secondary-fixed-dim: #a9c7ff;
+  --md-on-secondary-fixed: #002242;
+  --md-on-secondary-fixed-variant: #194674;
+
+  --md-tertiary: #005644;
+  --md-on-tertiary: #ffffff;
+  --md-tertiary-container: #b1ecd9;
+  --md-on-tertiary-container: #00251c;
+  --md-tertiary-fixed: #b1ecd9;
+  --md-tertiary-fixed-dim: #63d9bb;
+  --md-on-tertiary-fixed: #00251c;
+  --md-on-tertiary-fixed-variant: #005644;
+}
+
+.light.accent-sunset {
+  --md-primary: #8a5300;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #ffd9a0;
+  --md-on-primary-container: #2e1c00;
+  --md-primary-fixed: #ffd9a0;
+  --md-primary-fixed-dim: #ffbc4d;
+  --md-on-primary-fixed: #322000;
+  --md-on-primary-fixed-variant: #664800;
+  --md-inverse-primary: #ffbc4d;
+  --md-surface-tint: #8a5300;
+
+  --md-secondary: #873207;
+  --md-on-secondary: #ffffff;
+  --md-secondary-container: #ffd8cc;
+  --md-on-secondary-container: #4a1200;
+  --md-secondary-fixed: #ffd8cc;
+  --md-secondary-fixed-dim: #ffb59f;
+  --md-on-secondary-fixed: #4a1200;
+  --md-on-secondary-fixed-variant: #873207;
+
+  --md-tertiary: #83204a;
+  --md-on-tertiary: #ffffff;
+  --md-tertiary-container: #ffd8e2;
+  --md-on-tertiary-container: #3e001f;
+  --md-tertiary-fixed: #ffd8e2;
+  --md-tertiary-fixed-dim: #ff8fb1;
+  --md-on-tertiary-fixed: #3e001f;
+  --md-on-tertiary-fixed-variant: #83204a;
+}
+
+.light.accent-rose {
+  --md-primary: #b3005e;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #ffd8ea;
+  --md-on-primary-container: #44002f;
+  --md-primary-fixed: #ffd8ea;
+  --md-primary-fixed-dim: #ff8ac2;
+  --md-on-primary-fixed: #44002f;
+  --md-on-primary-fixed-variant: #7d0159;
+  --md-inverse-primary: #ff8ac2;
+  --md-surface-tint: #b3005e;
+
+  --md-secondary: #4b2ba8;
+  --md-on-secondary: #ffffff;
+  --md-secondary-container: #e6dfff;
+  --md-on-secondary-container: #20005f;
+  --md-secondary-fixed: #e6dfff;
+  --md-secondary-fixed-dim: #cfc2ff;
+  --md-on-secondary-fixed: #20005f;
+  --md-on-secondary-fixed-variant: #4b2ba8;
+
+  --md-tertiary: #8c2f0f;
+  --md-on-tertiary: #ffffff;
+  --md-tertiary-container: #ffdbcd;
+  --md-on-tertiary-container: #420d00;
+  --md-tertiary-fixed: #ffdbcd;
+  --md-tertiary-fixed-dim: #ffb499;
+  --md-on-tertiary-fixed: #420d00;
+  --md-on-tertiary-fixed-variant: #8c2f0f;
+}
+
+.light.accent-emerald {
+  --md-primary: #00854a;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #b0f1c8;
+  --md-on-primary-container: #002914;
+  --md-primary-fixed: #b0f1c8;
+  --md-primary-fixed-dim: #62dd9a;
+  --md-on-primary-fixed: #002914;
+  --md-on-primary-fixed-variant: #005f31;
+  --md-inverse-primary: #62dd9a;
+  --md-surface-tint: #00854a;
+
+  --md-secondary: #5c6d00;
+  --md-on-secondary: #ffffff;
+  --md-secondary-container: #e6f4ab;
+  --md-on-secondary-container: #212700;
+  --md-secondary-fixed: #e6f4ab;
+  --md-secondary-fixed-dim: #d0e47a;
+  --md-on-secondary-fixed: #212700;
+  --md-on-secondary-fixed-variant: #5c6d00;
+
+  --md-tertiary: #6e5c00;
+  --md-on-tertiary: #ffffff;
+  --md-tertiary-container: #f7e287;
+  --md-on-tertiary-container: #2b2100;
+  --md-tertiary-fixed: #f7e287;
+  --md-tertiary-fixed-dim: #e2c45c;
+  --md-on-tertiary-fixed: #2b2100;
+  --md-on-tertiary-fixed-variant: #6e5c00;
+}
+
+.light.accent-midnight {
+  --md-primary: #24359f;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #dfe2ff;
+  --md-on-primary-container: #001052;
+  --md-primary-fixed: #dfe2ff;
+  --md-primary-fixed-dim: #b3c3ff;
+  --md-on-primary-fixed: #001052;
+  --md-on-primary-fixed-variant: #24359f;
+  --md-inverse-primary: #b3c3ff;
+  --md-surface-tint: #24359f;
+
+  --md-secondary: #2a5578;
+  --md-on-secondary: #ffffff;
+  --md-secondary-container: #d2e4f7;
+  --md-on-secondary-container: #082334;
+  --md-secondary-fixed: #d2e4f7;
+  --md-secondary-fixed-dim: #a8cbea;
+  --md-on-secondary-fixed: #082334;
+  --md-on-secondary-fixed-variant: #2a5578;
+
+  --md-tertiary: #5f239e;
+  --md-on-tertiary: #ffffff;
+  --md-tertiary-container: #ecd8ff;
+  --md-on-tertiary-container: #2c0152;
+  --md-tertiary-fixed: #ecd8ff;
+  --md-tertiary-fixed-dim: #dfbafe;
+  --md-on-tertiary-fixed: #2c0152;
+  --md-on-tertiary-fixed-variant: #5f239e;
+}
+
 .font-display,
 .font-display-lg,
 .font-display-lg-mobile,
@@ -26,7 +498,9 @@
    instead if you'd rather use it as a first-class Tailwind utility. */
 body {
     font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
-    background: #111417;
+    background: var(--md-background);
+    /* Prevents a white flash on load before hydration applies .light. */
+    transition: background-color 150ms ease;
 }
 
 .font-display {
@@ -71,16 +545,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-    background: #111417;
+    background: var(--md-background);
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #323538;
+    background: var(--md-surface-container-highest);
     border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #4b4455;
+    background: var(--md-outline-variant);
 }
 
 /* Respect reduced-motion preferences */

@@ -227,6 +227,43 @@ export interface FakeViewerMetricRow {
   sampledAt: Date;
 }
 
+/** Minimal shape of the `points_wallets` rows the points module operates on. */
+export interface FakePointsWalletRow {
+  id: string;
+  userId: string;
+  balance: number;
+  totalEarned: number;
+  totalSpent: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Minimal shape of the `points_ledger` rows. */
+export interface FakePointsLedgerRow {
+  id: string;
+  userId: string;
+  reason: 'WATCH_TIME' | 'CHAT_MESSAGE' | 'MEME_PLAY' | 'ADMIN_ADJUST';
+  delta: number;
+  balanceAfter: number;
+  streamId: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: Date;
+}
+
+/** Minimal shape of the `meme_sounds` rows. */
+export interface FakeMemeSoundRow {
+  id: string;
+  channelId: string;
+  title: string;
+  storageKey: string;
+  price: number;
+  durationSeconds: number;
+  playCount: number;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 /** Minimal shape of the `stream_page_layouts` rows the layouts module operates on. */
 export interface FakeStreamPageLayoutRow {
   id: string;
@@ -315,6 +352,9 @@ export class FakePrismaService {
   private reportRows: FakeReportRow[] = [];
   private auditLogRows: FakeAuditLogRow[] = [];
   private streamPageLayoutRows: FakeStreamPageLayoutRow[] = [];
+  private pointsWalletRows: FakePointsWalletRow[] = [];
+  private pointsLedgerRows: FakePointsLedgerRow[] = [];
+  private memeSoundRows: FakeMemeSoundRow[] = [];
 
   /** Test helper: reset state between test cases. */
   reset(): void {
@@ -330,6 +370,9 @@ export class FakePrismaService {
     this.reportRows = [];
     this.auditLogRows = [];
     this.streamPageLayoutRows = [];
+    this.pointsWalletRows = [];
+    this.pointsLedgerRows = [];
+    this.memeSoundRows = [];
   }
 
   /**
@@ -679,9 +722,11 @@ export class FakePrismaService {
     findUnique: async ({
       where,
       include,
+      select,
     }: {
       where: { id?: string; streamKeyHash?: string | null };
       include?: { channel?: boolean | { select?: Record<string, boolean> } };
+      select?: { channel?: { select?: Record<string, boolean> } };
     }) => {
       let row: FakeStreamRow | null = null;
       if (where.id) row = this.streamRows.find((r) => r.id === where.id) ?? null;
@@ -694,8 +739,17 @@ export class FakePrismaService {
           : this.streamRows.find((r) => r.streamKeyHash === where.streamKeyHash) ?? null;
       }
       if (!row) return null;
-      if (include?.channel) {
+      if (include?.channel || select?.channel) {
         const channel = this.channelRows.find((c) => c.id === row!.channelId) ?? null;
+        if (select?.channel) {
+          // Respect the select shape: only the requested channel columns.
+          const wanted = select.channel.select ?? { id: true };
+          const picked: Record<string, unknown> = {};
+          for (const col of Object.keys(wanted)) {
+            if ((wanted as Record<string, boolean>)[col]) picked[col] = (channel as unknown as Record<string, unknown>)?.[col] ?? null;
+          }
+          return { ...row, channel: picked };
+        }
         return { ...row, channel };
       }
       return row;
@@ -1343,6 +1397,239 @@ export class FakePrismaService {
       return rows;
     },
   };
+
+  /** Phase 12 — points wallets + append-only ledger. */
+  pointsWallet = {
+    findUnique: async ({ where }: { where: { userId?: string; id?: string } }) => {
+      if (where.userId) return this.pointsWalletRows.find((r) => r.userId === where.userId) ?? null;
+      if (where.id) return this.pointsWalletRows.find((r) => r.id === where.id) ?? null;
+      return null;
+    },
+
+    create: async ({
+      data,
+    }: {
+      data: { userId: string; balance?: number; totalEarned?: number; totalSpent?: number };
+    }) => {
+      if (this.pointsWalletRows.some((r) => r.userId === data.userId)) {
+        throw new Error('Unique constraint failed on points_wallets.userId');
+      }
+      const now = new Date();
+      const row: FakePointsWalletRow = {
+        id: randomUUID(),
+        userId: data.userId,
+        balance: data.balance ?? 0,
+        totalEarned: data.totalEarned ?? 0,
+        totalSpent: data.totalSpent ?? 0,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.pointsWalletRows.push(row);
+      return row;
+    },
+
+    update: async ({
+      where,
+      data,
+    }: {
+      where: { userId: string };
+      data: {
+        balance?: number;
+        totalEarned?: { increment?: number };
+        totalSpent?: { increment?: number };
+      };
+    }) => {
+      const row = this.pointsWalletRows.find((r) => r.userId === where.userId);
+      if (!row) throw new Error('Record to update not found.');
+      if (data.balance !== undefined) row.balance = data.balance;
+      if (data.totalEarned?.increment !== undefined) row.totalEarned += data.totalEarned.increment;
+      if (data.totalSpent?.increment !== undefined) row.totalSpent += data.totalSpent.increment;
+      row.updatedAt = new Date();
+      return row;
+    },
+
+    /** Conditional optimistic-concurrency update used by PointsService. */
+    updateMany: async ({
+      where,
+      data,
+    }: {
+      where: { userId: string; balance: number };
+      data: {
+        balance: number;
+        totalEarned?: { increment?: number };
+        totalSpent?: { increment?: number };
+      };
+    }) => {
+      const row = this.pointsWalletRows.find((r) => r.userId === where.userId);
+      if (!row || row.balance !== where.balance) return { count: 0 };
+      row.balance = data.balance;
+      if (data.totalEarned?.increment !== undefined) row.totalEarned += data.totalEarned.increment;
+      if (data.totalSpent?.increment !== undefined) row.totalSpent += data.totalSpent.increment;
+      row.updatedAt = new Date();
+      return { count: 1 };
+    },
+  };
+
+  pointsLedger = {
+    create: async ({
+      data,
+    }: {
+      data: {
+        userId: string;
+        reason: FakePointsLedgerRow['reason'];
+        delta: number;
+        balanceAfter: number;
+        streamId?: string | null;
+        metadata?: Record<string, unknown>;
+        createdAt?: Date;
+      };
+    }) => {
+      const row: FakePointsLedgerRow = {
+        id: randomUUID(),
+        userId: data.userId,
+        reason: data.reason,
+        delta: data.delta,
+        balanceAfter: data.balanceAfter,
+        streamId: data.streamId ?? null,
+        metadata: data.metadata ?? null,
+        createdAt: data.createdAt ?? new Date(),
+      };
+      this.pointsLedgerRows.push(row);
+      return row;
+    },
+
+    findMany: async ({
+      where = {},
+      orderBy,
+      skip = 0,
+      take = 20,
+    }: {
+      where?: ListWhere;
+      orderBy?: Record<string, 'asc' | 'desc'>;
+      skip?: number;
+      take?: number;
+    }) => {
+      let rows = this.pointsLedgerRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where));
+      if (orderBy?.createdAt) {
+        rows = [...rows].sort((a, b) =>
+          orderBy.createdAt === 'asc' ? a.createdAt.getTime() - b.createdAt.getTime() : b.createdAt.getTime() - a.createdAt.getTime(),
+        );
+      }
+      return rows.slice(skip, skip + take);
+    },
+
+    count: async ({ where = {} }: { where?: ListWhere }) =>
+      this.pointsLedgerRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where)).length,
+  };
+
+  /** Phase 12 — meme sounds. */
+  memeSound = {
+    findUnique: async ({ where }: { where: { id?: string } }) => {
+      if (where.id) return this.memeSoundRows.find((r) => r.id === where.id) ?? null;
+      return null;
+    },
+
+    findMany: async ({
+      where = {},
+      orderBy,
+      skip = 0,
+      take = 100,
+    }: {
+      where?: ListWhere;
+      orderBy?: Record<string, 'asc' | 'desc'>;
+      skip?: number;
+      take?: number;
+    }) => {
+      let rows = this.memeSoundRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where));
+      if (orderBy?.createdAt) {
+        rows = [...rows].sort((a, b) =>
+          orderBy.createdAt === 'asc' ? a.createdAt.getTime() - b.createdAt.getTime() : b.createdAt.getTime() - a.createdAt.getTime(),
+        );
+      }
+      return rows.slice(skip, skip + take);
+    },
+
+    count: async ({ where = {} }: { where?: ListWhere }) =>
+      this.memeSoundRows.filter((row) => matchesWhere(row as unknown as Record<string, unknown>, where)).length,
+
+    create: async ({
+      data,
+    }: {
+      data: {
+        channelId: string;
+        title: string;
+        storageKey: string;
+        price: number;
+        durationSeconds?: number;
+      };
+    }) => {
+      const now = new Date();
+      const row: FakeMemeSoundRow = {
+        id: randomUUID(),
+        channelId: data.channelId,
+        title: data.title,
+        storageKey: data.storageKey,
+        price: data.price,
+        durationSeconds: data.durationSeconds ?? 0,
+        playCount: 0,
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.memeSoundRows.push(row);
+      return row;
+    },
+
+    update: async ({
+      where,
+      data,
+    }: {
+      where: { id: string };
+      data: {
+        title?: string;
+        price?: number;
+        active?: boolean;
+        playCount?: { increment?: number };
+      };
+    }) => {
+      const row = this.memeSoundRows.find((r) => r.id === where.id);
+      if (!row) throw new Error('Record to update not found.');
+      if (data.title !== undefined) row.title = data.title;
+      if (data.price !== undefined) row.price = data.price;
+      if (data.active !== undefined) row.active = data.active;
+      if (data.playCount?.increment !== undefined) row.playCount += data.playCount.increment;
+      row.updatedAt = new Date();
+      return row;
+    },
+
+    delete: async ({ where }: { where: { id: string } }) => {
+      const idx = this.memeSoundRows.findIndex((r) => r.id === where.id);
+      if (idx === -1) throw new Error('Record to delete does not exist.');
+      const [removed] = this.memeSoundRows.splice(idx, 1);
+      return removed;
+    },
+  };
+
+  /** Test helper: seed a meme sound row directly. */
+  seedMemeSound(
+    row: Partial<FakeMemeSoundRow> & { channelId: string; title: string; storageKey: string },
+  ): FakeMemeSoundRow {
+    const now = new Date();
+    const full: FakeMemeSoundRow = {
+      id: row.id ?? randomUUID(),
+      channelId: row.channelId,
+      title: row.title,
+      storageKey: row.storageKey,
+      price: row.price ?? 0,
+      durationSeconds: row.durationSeconds ?? 1,
+      playCount: row.playCount ?? 0,
+      active: row.active ?? true,
+      createdAt: row.createdAt ?? now,
+      updatedAt: row.updatedAt ?? now,
+    };
+    this.memeSoundRows.push(full);
+    return full;
+  }
 }
 
 /**
